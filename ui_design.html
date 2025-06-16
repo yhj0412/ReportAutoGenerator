@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel到Word数据填充工具</title>
+    <style>
+        :root {
+            --primary-color: #3f51b5;
+            --secondary-color: #f50057;
+            --background-color: #f5f5f5;
+            --card-color: #ffffff;
+            --text-color: #333333;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --border-radius: 8px;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            background-color: var(--background-color);
+            color: var(--text-color);
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            gap: 20px;
+            height: 100vh;
+        }
+        
+        .header {
+            background-color: var(--card-color);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            color: var(--primary-color);
+            font-size: 24px;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+        }
+        
+        .sidebar {
+            background-color: var(--card-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 20px;
+        }
+        
+        .module-list {
+            list-style: none;
+        }
+        
+        .module-item {
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+        
+        .module-item:hover {
+            background-color: rgba(63, 81, 181, 0.1);
+        }
+        
+        .module-item.active {
+            background-color: rgba(63, 81, 181, 0.2);
+            border-left: 4px solid var(--primary-color);
+            font-weight: bold;
+        }
+        
+        .content-area {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+        }
+        
+        .operation-panel {
+            background-color: var(--card-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 20px;
+        }
+        
+        .file-selection {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .file-input {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .file-input label {
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .file-input-field {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .file-input-field input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background-color: #e0e0e0;
+            color: var(--text-color);
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        
+        .execute-btn {
+            padding: 12px 24px;
+            background-color: var(--secondary-color);
+            color: white;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: none;
+            display: block;
+            margin: 0 auto;
+            transition: all 0.3s ease;
+        }
+        
+        .execute-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+        }
+        
+        .log-panel {
+            background-color: var(--card-color);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            padding: 20px;
+            overflow: hidden;
+        }
+        
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .log-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .log-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .log-content {
+            background-color: #1e1e1e;
+            color: #f0f0f0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            line-height: 1.5;
+        }
+        
+        .log-info {
+            color: #4caf50;
+        }
+        
+        .log-warning {
+            color: #ff9800;
+        }
+        
+        .log-error {
+            color: #f44336;
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background-color: #e0e0e0;
+            border-radius: 3px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: var(--secondary-color);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .status {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        /* 新增样式 */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: var(--primary-color);
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+        }
+        
+        .module-form {
+            display: none;
+        }
+        
+        .module-form.active {
+            display: block;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        /* 错误样式 */
+        .error {
+            border-color: #f44336 !important;
+            background-color: rgba(244, 67, 54, 0.05) !important;
+        }
+        
+        .error-field {
+            animation: shake 0.5s;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Excel到Word数据填充工具</h1>
+            <div class="header-actions">
+                <button class="btn btn-secondary">设置</button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="sidebar">
+                <h2>功能模块</h2>
+                <ul class="module-list">
+                    <li class="module-item active" data-module="module1">1. 射线检测委托台账</li>
+                    <li class="module-item" data-module="module2">2. RT结果通知单台账</li>
+                    <li class="module-item" data-module="module3">3. 表面结果通知单台账</li>
+                    <li class="module-item" data-module="module4">4. 射线检测记录</li>
+                    <li class="module-item" data-module="module5">5. 射线检测记录续</li>
+                </ul>
+            </div>
+            
+            <div class="content-area">
+                <div class="operation-panel">
+                    <!-- 模块1：射线检测委托台账 -->
+                    <div id="module1-form" class="module-form active">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>工程名称</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>委托单位</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>检测标准</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>验收规范</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>检测方法</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>检测技术等级</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>外观检查</label>
+                                <input type="text" class="form-control" value="合格">
+                            </div>
+                            <div class="form-group">
+                                <label>坡口形式</label>
+                                <input type="text" class="form-control" value="V">
+                            </div>
+                        </div>
+                        
+                        <div class="file-input excel-input">
+                            <label>选择输入文件(xlsx)*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择Excel文件..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-input word-input" style="margin-top: 15px;">
+                            <label>选择Word模板文件(docx)*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择Word模板文件..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-input output-input" style="margin-top: 15px;">
+                            <label>选择输出文件夹*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择输出目录..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 30px; text-align: center;">
+                            <button class="execute-btn">提交</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 模块2：RT结果通知单台账 -->
+                    <div id="module2-form" class="module-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>工程名称</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>检测标准</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>委托单位</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>检测方法</label>
+                                <input type="text" class="form-control" value="RT">
+                            </div>
+                        </div>
+                        
+                        <div class="file-input excel-input">
+                            <label>选择输入文件(xlsx)*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择Excel文件..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-input word-input" style="margin-top: 15px;">
+                            <label>选择Word模板文件(docx)*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择Word模板文件..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-input output-input" style="margin-top: 15px;">
+                            <label>选择输出文件夹*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择输出目录..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 30px; text-align: center;">
+                            <button class="execute-btn">提交</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 模块3：表面结果通知单台账 -->
+                    <div id="module3-form" class="module-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>工程名称</label>
+                                <input type="text" class="form-control" value="1">
+                            </div>
+                            <div class="form-group">
+                                <label>委托单位</label>
+                                <input type="text" class="form-control" value="2">
+                            </div>
+                            <div class="form-group">
+                                <label>检测标准</label>
+                                <input type="text" class="form-control" value="3">
+                            </div>
+                            <div class="form-group">
+                                <label>检测方法</label>
+                                <input type="text" class="form-control" value="RT">
+                            </div>
+                        </div>
+                        
+                        <div class="file-input excel-input">
+                            <label>选择输入文件(xlsx)*</label>
+                            <div class="file-input-field">
+                                <input type="text" class="form-control" value="E:/Cursor_program/毕业设计/私活/周甫版/report-generator/test/input/表面结果通知单台账测试/生成器台账.xlsx" readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-input word-input" style="margin-top: 15px;">
+                            <label>选择Word模板文件(docx)*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择Word模板文件..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-input output-input" style="margin-top: 15px;">
+                            <label>选择输出文件夹*</label>
+                            <div class="file-input-field">
+                                <input type="text" class="form-control" value="E:/Cursor_program/毕业设计/私活/周甫版/report-generator/test/output/表面结果通知单" readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 30px; text-align: center;">
+                            <button class="execute-btn">提交</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 模块4：射线检测记录 -->
+                    <div id="module4-form" class="module-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>工程名称</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>委托单位</label>
+                                <input type="text" class="form-control">
+                            </div>
+                        </div>
+                        
+                        <div class="file-input excel-input">
+                            <label>选择输入文件(xlsx)*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择Excel文件..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-input word-input" style="margin-top: 15px;">
+                            <label>选择Word模板文件(docx)*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择Word模板文件..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-input output-input" style="margin-top: 15px;">
+                            <label>选择输出文件夹*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择输出目录..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 30px; text-align: center;">
+                            <button class="execute-btn">提交</button>
+                        </div>
+                    </div>
+                    
+                    <!-- 模块5：射线检测记录续 -->
+                    <div id="module5-form" class="module-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>工程名称</label>
+                                <input type="text" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label>委托单位</label>
+                                <input type="text" class="form-control">
+                            </div>
+                        </div>
+                        
+                        <div class="file-input excel-input">
+                            <label>选择输入文件(xlsx)*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择Excel文件..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-input word-input" style="margin-top: 15px;">
+                            <label>选择Word模板文件(docx)*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择Word模板文件..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div class="file-input output-input" style="margin-top: 15px;">
+                            <label>选择输出文件夹*</label>
+                            <div class="file-input-field">
+                                <input type="text" placeholder="请选择输出目录..." readonly>
+                                <button class="btn btn-secondary">浏览...</button>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 30px; text-align: center;">
+                            <button class="execute-btn">提交</button>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%;"></div>
+                    </div>
+                    <div class="status">
+                        <span>状态: 准备就绪</span>
+                        <span>0/0 文件已处理</span>
+                    </div>
+                </div>
+                
+                <div class="log-panel">
+                    <div class="log-header">
+                        <div class="log-title">执行日志</div>
+                        <div class="log-actions">
+                            <button class="btn btn-secondary">清空</button>
+                            <button class="btn btn-secondary">导出</button>
+                        </div>
+                    </div>
+                    <div class="log-content">
+                        <div class="log-entry log-info">[信息] 系统初始化完成，等待用户操作...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 模块切换功能
+        document.addEventListener('DOMContentLoaded', function() {
+            const moduleItems = document.querySelectorAll('.module-item');
+            const moduleForms = document.querySelectorAll('.module-form');
+            
+            moduleItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    // 移除所有激活状态
+                    moduleItems.forEach(mi => mi.classList.remove('active'));
+                    moduleForms.forEach(mf => mf.classList.remove('active'));
+                    
+                    // 添加当前激活状态
+                    this.classList.add('active');
+                    const moduleId = this.getAttribute('data-module');
+                    document.getElementById(moduleId + '-form').classList.add('active');
+                    
+                    // 添加日志
+                    addLogEntry(`[${new Date().toLocaleTimeString()}] 用户选择了功能模块: ${this.textContent}`);
+                });
+            });
+            
+            // 日志添加函数
+            function addLogEntry(text, type = '') {
+                const logContent = document.querySelector('.log-content');
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry ' + type;
+                logEntry.textContent = text;
+                logContent.appendChild(logEntry);
+                logContent.scrollTop = logContent.scrollHeight;
+            }
+            
+            // 浏览文件按钮点击事件
+            const browseButtons = document.querySelectorAll('.file-input-field .btn');
+            browseButtons.forEach(button => {
+                button.addEventListener('click', async function() {
+                    const inputField = this.previousElementSibling;
+                    const label = this.parentElement.parentElement.querySelector('label').textContent;
+                    
+                    let fileType = 'excel';
+                    if (label.includes('Excel') || label.includes('xlsx')) {
+                        fileType = 'excel';
+                    } else if (label.includes('Word') || label.includes('docx')) {
+                        fileType = 'word';
+                    } else if (label.includes('输出')) {
+                        fileType = 'dir';
+                    }
+                    
+                    try {
+                        // 显示加载状态
+                        this.disabled = true;
+                        this.textContent = "请稍候...";
+                        addLogEntry(`[${new Date().toLocaleTimeString()}] 正在打开文件浏览对话框...`, 'log-info');
+                        
+                        // 显示提示信息
+                        const statusText = document.querySelector('.status span:first-child');
+                        const originalStatus = statusText.textContent;
+                        statusText.textContent = "状态: 已打开文件选择窗口，如未看到请按Alt+Tab切换窗口";
+                        
+                        const response = await fetch('/api/browse-file', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ type: fileType })
+                        });
+                        
+                        // 恢复按钮状态
+                        this.disabled = false;
+                        this.textContent = "浏览...";
+                        statusText.textContent = originalStatus;
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.path) {
+                                inputField.value = data.path;
+                                addLogEntry(`[${new Date().toLocaleTimeString()}] ${label}已选择: ${data.path}`, 'log-info');
+                            } else {
+                                addLogEntry(`[${new Date().toLocaleTimeString()}] 未选择文件`, 'log-warning');
+                            }
+                        } else {
+                            addLogEntry(`[${new Date().toLocaleTimeString()}] 选择文件失败: ${response.statusText}`, 'log-error');
+                        }
+                    } catch (error) {
+                        // 恢复按钮状态
+                        this.disabled = false;
+                        this.textContent = "浏览...";
+                        addLogEntry(`[${new Date().toLocaleTimeString()}] 选择文件时发生错误: ${error.message}`, 'log-error');
+                    }
+                });
+            });
+            
+            // 清空日志按钮点击事件
+            const clearLogButton = document.querySelector('.log-actions .btn:first-child');
+            if (clearLogButton) {
+                clearLogButton.addEventListener('click', function() {
+                    const logContent = document.querySelector('.log-content');
+                    logContent.innerHTML = '';
+                    addLogEntry(`[${new Date().toLocaleTimeString()}] 日志已清空`, 'log-info');
+                });
+            }
+            
+            // 导出日志按钮点击事件
+            const exportLogButton = document.querySelector('.log-actions .btn:last-child');
+            if (exportLogButton) {
+                exportLogButton.addEventListener('click', function() {
+                    const logContent = document.querySelector('.log-content').innerText;
+                    const blob = new Blob([logContent], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `日志_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    addLogEntry(`[${new Date().toLocaleTimeString()}] 日志已导出`, 'log-info');
+                });
+            }
+            
+            // 定期检查并更新日志
+            async function fetchLogs() {
+                try {
+                    const response = await fetch('/api/get-logs', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({})
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.logs && data.logs.length > 0) {
+                            data.logs.forEach(log => {
+                                let type = '';
+                                if (log.includes('[信息]') || log.includes('成功')) {
+                                    type = 'log-info';
+                                } else if (log.includes('[警告]')) {
+                                    type = 'log-warning';
+                                } else if (log.includes('[错误]') || log.includes('失败')) {
+                                    type = 'log-error';
+                                }
+                                addLogEntry(log, type);
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('获取日志失败:', error);
+                }
+            }
+            
+            // 每秒检查一次日志更新
+            setInterval(fetchLogs, 1000);
+            
+            // 提交按钮点击事件
+            const executeButtons = document.querySelectorAll('.execute-btn');
+            executeButtons.forEach(button => {
+                button.addEventListener('click', async function() {
+                    // 获取当前活动的模块
+                    const activeModule = document.querySelector('.module-item.active').getAttribute('data-module');
+                    const moduleForm = document.getElementById(activeModule + '-form');
+                    
+                    // 获取表单数据
+                    const excelInput = moduleForm.querySelector('.excel-input input');
+                    const wordInput = moduleForm.querySelector('.word-input input');
+                    const outputInput = moduleForm.querySelector('.output-input input');
+                    
+                    const excelFile = excelInput ? excelInput.value : '';
+                    const wordTemplate = wordInput ? wordInput.value : '';
+                    const outputDir = outputInput ? outputInput.value : '';
+                    
+                    // 打印调试信息到控制台
+                    console.log('提交表单数据:');
+                    console.log('Excel文件:', excelFile);
+                    console.log('Word模板:', wordTemplate);
+                    console.log('输出目录:', outputDir);
+                    
+                    // 验证输入
+                    if (!excelFile || !wordTemplate || !outputDir) {
+                        addLogEntry(`[${new Date().toLocaleTimeString()}] 错误: 请先选择所有必需的文件和目录`, 'log-error');
+                        
+                        // 标记未填写的字段
+                        if (!excelFile) {
+                            excelInput.classList.add('error');
+                            excelInput.parentElement.parentElement.classList.add('error-field');
+                        }
+                        if (!wordTemplate) {
+                            wordInput.classList.add('error');
+                            wordInput.parentElement.parentElement.classList.add('error-field');
+                        }
+                        if (!outputDir) {
+                            outputInput.classList.add('error');
+                            outputInput.parentElement.parentElement.classList.add('error-field');
+                        }
+                        
+                        return;
+                    }
+                    
+                    // 清除错误标记
+                    moduleForm.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+                    moduleForm.querySelectorAll('.error-field').forEach(el => el.classList.remove('error-field'));
+                    
+                    // 模拟处理流程
+                    const progressFill = document.querySelector('.progress-fill');
+                    const statusText = document.querySelector('.status span:first-child');
+                    
+                    statusText.textContent = '状态: 正在处理...';
+                    progressFill.style.width = '0%';
+                    
+                    addLogEntry(`[${new Date().toLocaleTimeString()}] 开始执行数据填充...`, 'log-info');
+                    addLogEntry(`[${new Date().toLocaleTimeString()}] Excel文件: ${excelFile}`, 'log-info');
+                    addLogEntry(`[${new Date().toLocaleTimeString()}] Word模板: ${wordTemplate}`, 'log-info');
+                    addLogEntry(`[${new Date().toLocaleTimeString()}] 输出目录: ${outputDir}`, 'log-info');
+                    
+                    try {
+                        // 调用后端API生成报告
+                        const response = await fetch('/api/generate', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                module: activeModule,
+                                excel_file: excelFile,
+                                word_template: wordTemplate,
+                                output_dir: outputDir
+                            })
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            
+                            // 设置进度条为100%
+                            progressFill.style.width = '100%';
+                            
+                            if (data.success) {
+                                statusText.textContent = '状态: 完成';
+                                addLogEntry(`[${new Date().toLocaleTimeString()}] 数据填充完成！`, 'log-info');
+                            } else {
+                                statusText.textContent = '状态: 失败';
+                                addLogEntry(`[${new Date().toLocaleTimeString()}] 数据填充失败！`, 'log-error');
+                            }
+                        } else {
+                            progressFill.style.width = '100%';
+                            statusText.textContent = '状态: 失败';
+                            addLogEntry(`[${new Date().toLocaleTimeString()}] 数据填充失败: ${response.statusText}`, 'log-error');
+                        }
+                    } catch (error) {
+                        progressFill.style.width = '100%';
+                        statusText.textContent = '状态: 失败';
+                        addLogEntry(`[${new Date().toLocaleTimeString()}] 数据填充时发生错误: ${error.message}`, 'log-error');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html> 
