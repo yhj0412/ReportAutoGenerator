@@ -11,13 +11,27 @@ def find_column_with_keyword(df, keyword):
     matching_cols = [col for col in df.columns if keyword.lower() in col.lower()]
     return matching_cols[0] if matching_cols else None
 
-def process_excel_to_word(excel_path, word_template_path, output_path):
+def get_output_filename(word_template_path):
+    """根据Word模板路径生成输出文件名
+    
+    Args:
+        word_template_path: Word模板文档路径
+    
+    Returns:
+        str: 输出文件名
+    """
+    # 获取模板文件名（不含路径和扩展名）
+    template_name = os.path.splitext(os.path.basename(word_template_path))[0]
+    # 生成输出文件名
+    return f"{template_name}_生成结果.docx"
+
+def process_excel_to_word(excel_path, word_template_path, output_path=None):
     """将Excel数据填入Word文档
     
     Args:
         excel_path: Excel表格路径
         word_template_path: Word模板文档路径
-        output_path: 输出Word文档路径
+        output_path: 输出Word文档路径（如果为None，将自动生成）
     
     Returns:
         bool: 处理是否成功
@@ -30,6 +44,18 @@ def process_excel_to_word(excel_path, word_template_path, output_path):
     if not os.path.exists(word_template_path):
         print(f"错误: Word模板文件不存在: {word_template_path}")
         return False
+    
+    # 如果未指定输出路径，则自动生成
+    if output_path is None:
+        # 创建输出目录
+        output_dir = os.path.join("生成器", "输出报告")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            print(f"创建输出目录: {output_dir}")
+        
+        # 根据模板文件名生成输出文件名
+        output_filename = get_output_filename(word_template_path)
+        output_path = os.path.join(output_dir, output_filename)
     
     # 确保输出目录存在
     output_dir = os.path.dirname(output_path)
@@ -285,9 +311,12 @@ def process_excel_to_word(excel_path, word_template_path, output_path):
 def main():
     # 创建命令行参数解析器
     parser = argparse.ArgumentParser(description='将Excel数据填入Word文档')
-    parser.add_argument('-e', '--excel', required=True, help='Excel表格路径')
-    parser.add_argument('-w', '--word', required=True, help='Word模板文档路径')
-    parser.add_argument('-o', '--output', required=True, help='输出Word文档路径')
+    parser.add_argument('-e', '--excel', default="生成器/Excel/1_生成器台账_委托.xlsx", 
+                        help='Excel表格路径 (默认: 生成器/Excel/1_生成器台账_委托.xlsx)')
+    parser.add_argument('-w', '--word', default="生成器/wod/1_新RX3-03-ZYLJ-DG-RT-0001.docx", 
+                        help='Word模板文档路径 (默认: 生成器/wod/1_新RX3-03-ZYLJ-DG-RT-0001.docx)')
+    parser.add_argument('-o', '--output', 
+                        help='输出Word文档路径 (可选，默认根据模板名生成并保存到"生成器/输出报告"目录)')
     
     # 解析命令行参数
     args = parser.parse_args()
