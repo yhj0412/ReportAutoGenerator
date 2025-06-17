@@ -26,13 +26,16 @@ def get_output_filename(word_template_path, order_number):
     # 生成输出文件名
     return f"{template_name}_{order_number}_生成结果.docx"
 
-def process_excel_to_word(excel_path, word_template_path, output_path=None):
+def process_excel_to_word(excel_path, word_template_path, output_path=None, project_name=None, client_name=None, inspection_method=None):
     """将Excel数据填入Word文档
     
     Args:
         excel_path: Excel表格路径
         word_template_path: Word模板文档路径
         output_path: 输出Word文档路径（如果为None，将自动生成）
+        project_name: 工程名称，用于替换文档中的"工程名称参数值"
+        client_name: 委托单位，用于替换文档中的"委托单位参数值"
+        inspection_method: 检测方法，用于替换文档中的"检测方法参数"
     
     Returns:
         bool: 处理是否成功
@@ -188,6 +191,44 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
         else:
             # 对于.docx文件，直接打开
             doc = Document(word_template_path)
+        
+        # 替换文档中的参数值
+        if project_name or client_name or inspection_method:
+            print("\n==== 开始替换参数值 ====")
+            
+            # 遍历所有段落和表格中的单元格，替换参数值
+            # 1. 遍历段落
+            for paragraph in doc.paragraphs:
+                if project_name and "工程名称参数值" in paragraph.text:
+                    paragraph.text = paragraph.text.replace("工程名称参数值", project_name)
+                    print(f"已将段落中的'工程名称参数值'替换为'{project_name}'")
+                
+                if client_name and "委托单位参数值" in paragraph.text:
+                    paragraph.text = paragraph.text.replace("委托单位参数值", client_name)
+                    print(f"已将段落中的'委托单位参数值'替换为'{client_name}'")
+                
+                if inspection_method and "检测方法参数" in paragraph.text:
+                    paragraph.text = paragraph.text.replace("检测方法参数", inspection_method)
+                    print(f"已将段落中的'检测方法参数'替换为'{inspection_method}'")
+            
+            # 2. 遍历表格中的单元格
+            for table in doc.tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        for paragraph in cell.paragraphs:
+                            if project_name and "工程名称参数值" in paragraph.text:
+                                paragraph.text = paragraph.text.replace("工程名称参数值", project_name)
+                                print(f"已将表格单元格中的'工程名称参数值'替换为'{project_name}'")
+                            
+                            if client_name and "委托单位参数值" in paragraph.text:
+                                paragraph.text = paragraph.text.replace("委托单位参数值", client_name)
+                                print(f"已将表格单元格中的'委托单位参数值'替换为'{client_name}'")
+                            
+                            if inspection_method and "检测方法参数" in paragraph.text:
+                                paragraph.text = paragraph.text.replace("检测方法参数", inspection_method)
+                                print(f"已将表格单元格中的'检测方法参数'替换为'{inspection_method}'")
+            
+            print("==== 参数值替换完成 ====\n")
         
         # 填写通知单编号（委托单编号）
         notification_number_updated = False
@@ -580,12 +621,18 @@ def main():
                         help='Word模板文档路径 (默认: 生成器/wod/2_新-聚乙烯结果_改.docx)')
     parser.add_argument('-o', '--output', 
                         help='输出目录 (可选，默认为"生成器/输出报告"目录)')
+    parser.add_argument('-p', '--project', 
+                        help='工程名称，用于替换文档中的"工程名称参数值"')
+    parser.add_argument('-c', '--client', 
+                        help='委托单位，用于替换文档中的"委托单位参数值"')
+    parser.add_argument('-m', '--method', 
+                        help='检测方法，用于替换文档中的"检测方法参数"')
     
     # 解析命令行参数
     args = parser.parse_args()
     
     # 处理Excel到Word的转换
-    success = process_excel_to_word(args.excel, args.word, args.output)
+    success = process_excel_to_word(args.excel, args.word, args.output, args.project, args.client, args.method)
     
     # 返回状态码
     sys.exit(0 if success else 1)
