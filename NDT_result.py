@@ -50,7 +50,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
         return False
     
     # 创建输出目录
-    output_dir = os.path.join("生成器", "输出报告")
+    output_dir = os.path.join("生成器", "输出报告", "2_RT结果通知单台账_Mode")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         print(f"创建输出目录: {output_dir}")
