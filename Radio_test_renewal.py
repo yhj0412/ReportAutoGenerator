@@ -35,13 +35,16 @@ def get_output_filename(word_template_path, order_number, ray_type):
     # 生成输出文件名
     return f"{template_name}_{order_number}_{ray_mark}_续表_生成结果.docx"
 
-def process_excel_to_word(excel_path, word_template_path, output_path=None):
+def process_excel_to_word(excel_path, word_template_path, output_path=None, project_name=None, client_name=None, instruction_number=None):
     """将Excel数据填入Word文档
     
     Args:
         excel_path: Excel表格路径
         word_template_path: Word模板文档路径
         output_path: 输出目录路径（如果为None，将自动生成）
+        project_name: 工程名称，用于替换Word文档中的"工程名称值"
+        client_name: 委托单位，用于替换Word文档中的"委托单位值"
+        instruction_number: 操作指导书编号，用于替换Word文档中的"操作指导书编号值"
     
     Returns:
         bool: 处理是否成功
@@ -309,6 +312,18 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
                     paragraph.text = paragraph.text.replace("委托单编号值", committee_order)
                     print(f"已将段落中的'委托单编号值'替换为'{committee_order}'")
                     replaced = True
+                # 替换工程名称
+                if "工程名称值" in paragraph.text and project_name:
+                    paragraph.text = paragraph.text.replace("工程名称值", project_name)
+                    print(f"已将段落中的'工程名称值'替换为'{project_name}'")
+                # 替换委托单位
+                if "委托单位值" in paragraph.text and client_name:
+                    paragraph.text = paragraph.text.replace("委托单位值", client_name)
+                    print(f"已将段落中的'委托单位值'替换为'{client_name}'")
+                # 替换操作指导书编号
+                if "操作指导书编号值" in paragraph.text and instruction_number:
+                    paragraph.text = paragraph.text.replace("操作指导书编号值", instruction_number)
+                    print(f"已将段落中的'操作指导书编号值'替换为'{instruction_number}'")
             
             # 遍历表格中的单元格，替换关键词
             for table in doc.tables:
@@ -319,6 +334,18 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
                                 paragraph.text = paragraph.text.replace("委托单编号值", committee_order)
                                 print(f"已将表格单元格中的'委托单编号值'替换为'{committee_order}'")
                                 replaced = True
+                            # 替换工程名称
+                            if "工程名称值" in paragraph.text and project_name:
+                                paragraph.text = paragraph.text.replace("工程名称值", project_name)
+                                print(f"已将表格单元格中的'工程名称值'替换为'{project_name}'")
+                            # 替换委托单位
+                            if "委托单位值" in paragraph.text and client_name:
+                                paragraph.text = paragraph.text.replace("委托单位值", client_name)
+                                print(f"已将表格单元格中的'委托单位值'替换为'{client_name}'")
+                            # 替换操作指导书编号
+                            if "操作指导书编号值" in paragraph.text and instruction_number:
+                                paragraph.text = paragraph.text.replace("操作指导书编号值", instruction_number)
+                                print(f"已将表格单元格中的'操作指导书编号值'替换为'{instruction_number}'")
             
             if not replaced:
                 print("警告: 未找到需要替换的关键词，可能需要检查Word模板中的占位符命名。")
@@ -644,6 +671,47 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
                                                 except Exception as e2:
                                                     print(f"备用方法也失败: {e2}")
                                     
+                                    # 6. 填写像质计灵敏度
+                                    # 查找表格中的"像质计灵敏度"列
+                                    sensitivity_col_idx = -1
+                                    for j, cell in enumerate(table.rows[header_row_index].cells):
+                                        if "像质计" in cell.text and "灵敏度" in cell.text:
+                                            sensitivity_col_idx = j
+                                            print(f"找到像质计灵敏度列: 行 {header_row_index+1}, 列 {j+1}")
+                                            break
+                                    
+                                    if sensitivity_col_idx >= 0 and sensitivity_col_idx < len(row.cells):
+                                        # 查找对应规格的像质计灵敏度值
+                                        sensitivity_value = find_sensitivity_value(current_spec, ray_type)
+                                        
+                                        if sensitivity_value:
+                                            # 填写像质计灵敏度值
+                                            cell = row.cells[sensitivity_col_idx]
+                                            
+                                            try:
+                                                # 先清空单元格的所有内容
+                                                for p in cell.paragraphs:
+                                                    p.clear()
+                                                
+                                                # 如果没有段落，添加一个新段落
+                                                if len(cell.paragraphs) == 0:
+                                                    p = cell.add_paragraph()
+                                                
+                                                # 设置像质计灵敏度文本
+                                                run = cell.paragraphs[0].add_run(sensitivity_value)
+                                                print(f"已更新第{row_idx+1}行像质计灵敏度: '{sensitivity_value}'")
+                                            except Exception as e:
+                                                print(f"设置像质计灵敏度时出错: {e}")
+                                                # 尝试另一种方式
+                                                try:
+                                                    if len(cell.paragraphs) > 0:
+                                                        cell.paragraphs[0].text = sensitivity_value
+                                                    else:
+                                                        cell.text = sensitivity_value
+                                                    print(f"使用备用方法设置像质计灵敏度: '{sensitivity_value}'")
+                                                except Exception as e2:
+                                                    print(f"备用方法也失败: {e2}")
+                                    
                                     row_index += 1
                                     processed_rows += 1
             
@@ -669,6 +737,118 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
     
     return success_count > 0
 
+# 新增函数：查找像质计灵敏度
+def find_sensitivity_value(specification, ray_type):
+    """
+    根据规格和射线类型查找对应的像质计灵敏度值
+    
+    Args:
+        specification: 规格值
+        ray_type: 射线类型 ("X射线" 或 "γ射线")
+    
+    Returns:
+        str: 像质计灵敏度值，如果未找到则返回空字符串
+    """
+    try:
+        # 根据射线类型选择不同的Excel文件
+        if ray_type == "X射线":
+            excel_path = "生成器/Excel/4_生成器X射线指导书模版.xlsx"
+            print(f"查找X射线像质计灵敏度，使用文件: {excel_path}")
+        else:  # γ射线
+            excel_path = "生成器/Excel/4_生成器γ射线指导书模版.xlsx"
+            print(f"查找γ射线像质计灵敏度，使用文件: {excel_path}")
+        
+        # 检查文件是否存在
+        if not os.path.exists(excel_path):
+            print(f"错误: 像质计灵敏度查询文件不存在: {excel_path}")
+            return ""
+        
+        # 读取Excel文件
+        df = pd.read_excel(excel_path)
+        
+        # 打印列名，帮助调试
+        print(f"文件 {excel_path} 的列名: {list(df.columns)}")
+        
+        # 检查A列是否存在
+        if len(df.columns) == 0:
+            print(f"错误: Excel文件 {excel_path} 没有任何列")
+            return ""
+        
+        # 使用A列作为规格列（第一列）
+        spec_column = df.columns[0]
+        print(f"使用A列 '{spec_column}' 作为规格列")
+        
+        # 使用I列作为像质计灵敏度列（第9列，因为索引从0开始）
+        if len(df.columns) <= 8:
+            print(f"错误: Excel文件 {excel_path} 没有足够的列数来使用I列，当前列数: {len(df.columns)}")
+            return ""
+        
+        sensitivity_column = df.columns[8]  # I列
+        print(f"使用I列 '{sensitivity_column}' 作为像质计灵敏度列")
+        
+        # 清理规格字符串，便于匹配
+        clean_spec = specification.strip()
+        print(f"开始查找规格值: '{clean_spec}'")
+        
+        # 在规格列中查找匹配项
+        for idx, row_spec in enumerate(df[spec_column]):
+            if pd.isna(row_spec):
+                continue
+                
+            row_spec_str = str(row_spec).strip()
+            
+            # 检查是否精确匹配
+            if clean_spec == row_spec_str:
+                # 找到匹配项，获取对应的像质计灵敏度值
+                sensitivity = df.iloc[idx][sensitivity_column]
+                if pd.isna(sensitivity):
+                    print(f"警告: 规格 '{clean_spec}' 对应的像质计灵敏度值为空")
+                    return ""
+                
+                print(f"找到规格 '{clean_spec}' 对应的像质计灵敏度值: {sensitivity}")
+                return str(sensitivity)
+        
+        # 如果没有找到精确匹配，尝试部分匹配
+        for idx, row_spec in enumerate(df[spec_column]):
+            if pd.isna(row_spec):
+                continue
+                
+            row_spec_str = str(row_spec).strip()
+            
+            # 提取规格中的数字部分
+            spec_numbers = re.findall(r'\d+\.?\d*', clean_spec)
+            row_spec_numbers = re.findall(r'\d+\.?\d*', row_spec_str)
+            
+            # 检查是否部分匹配（检查规格的数字部分是否匹配）
+            if spec_numbers and row_spec_numbers and spec_numbers == row_spec_numbers:
+                # 找到部分匹配项，获取对应的像质计灵敏度值
+                sensitivity = df.iloc[idx][sensitivity_column]
+                if pd.isna(sensitivity):
+                    print(f"警告: 规格 '{row_spec_str}' (部分匹配 '{clean_spec}') 对应的像质计灵敏度值为空")
+                    return ""
+                
+                print(f"找到规格 '{row_spec_str}' (部分匹配 '{clean_spec}') 对应的像质计灵敏度值: {sensitivity}")
+                return str(sensitivity)
+            
+            # 尝试更宽松的匹配：只要数字部分有重叠即可
+            if spec_numbers and row_spec_numbers:
+                # 检查是否有共同的数字
+                common_numbers = set(spec_numbers).intersection(set(row_spec_numbers))
+                if common_numbers:
+                    sensitivity = df.iloc[idx][sensitivity_column]
+                    if pd.isna(sensitivity):
+                        continue
+                    
+                    print(f"找到规格 '{row_spec_str}' (宽松匹配 '{clean_spec}') 对应的像质计灵敏度值: {sensitivity}")
+                    return str(sensitivity)
+        
+        print(f"警告: 未找到规格 '{clean_spec}' 对应的像质计灵敏度值")
+        return ""
+    
+    except Exception as e:
+        print(f"查找像质计灵敏度时出错: {e}")
+        return ""
+
 def main():
     # 创建命令行参数解析器
     parser = argparse.ArgumentParser(description='将Excel数据填入Word文档')
@@ -678,12 +858,19 @@ def main():
                         help='Word模板文档路径 (默认: 生成器/wod/5_射线检测记录_续.docx)')
     parser.add_argument('-o', '--output', 
                         help='输出目录 (可选，默认为"生成器/输出报告/5_射线检测记录续"目录)')
+    parser.add_argument('-p', '--project', 
+                        help='工程名称 (用于替换Word文档中的"工程名称值")')
+    parser.add_argument('-c', '--client', 
+                        help='委托单位 (用于替换Word文档中的"委托单位值")')
+    parser.add_argument('-i', '--instruction', 
+                        help='操作指导书编号 (用于替换Word文档中的"操作指导书编号值")')
     
     # 解析命令行参数
     args = parser.parse_args()
     
     # 处理Excel到Word的转换
-    success = process_excel_to_word(args.excel, args.word, args.output)
+    success = process_excel_to_word(args.excel, args.word, args.output, 
+                                   args.project, args.client, args.instruction)
     
     # 返回状态码
     sys.exit(0 if success else 1)
