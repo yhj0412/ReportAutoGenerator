@@ -183,6 +183,12 @@ class NDTResultGUI:
         
         # 创建表面结果通知单台账模块的内容
         self.create_surface_defect_frame(self.module_frames[2])
+        
+        # 创建射线检测记录模块的内容
+        self.create_radio_test_frame(self.module_frames[3])
+        
+        # 创建射线检测记录续模块的内容
+        # TODO: 实现射线检测记录续模块
     
     def create_ray_detection_frame(self, parent_frame):
         """创建射线检测委托台账模块的内容"""
@@ -554,6 +560,140 @@ class NDTResultGUI:
         
         # 设置日志重定向
         self.surface_redirect = RedirectText(self.surface_log_text)
+    
+    def create_radio_test_frame(self, parent_frame):
+        """创建射线检测记录模块的内容"""
+        parent_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 模块标题
+        header_frame = ttk.Frame(parent_frame)
+        header_frame.pack(fill=tk.X, pady=(0, 15))
+        header_label = ttk.Label(header_frame, text="射线检测记录", 
+                                style="ContentHeader.TLabel")
+        header_label.pack(side=tk.LEFT, padx=5)
+        
+        # 参数设置区域
+        params_frame = ttk.LabelFrame(parent_frame, text="参数设置")
+        params_frame.pack(fill=tk.X, pady=(0, 10), padx=5)
+        
+        # 创建参数行
+        params_grid = ttk.Frame(params_frame)
+        params_grid.pack(fill=tk.X, padx=15, pady=15)
+        
+        # 第一行参数
+        row1_frame = ttk.Frame(params_grid)
+        row1_frame.pack(fill=tk.X, pady=5)
+        
+        # 工程名称
+        project_label = ttk.Label(row1_frame, text="工程名称")
+        project_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.radio_project_entry = ttk.Entry(row1_frame, width=40)
+        self.radio_project_entry.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # 第二行参数
+        row2_frame = ttk.Frame(params_grid)
+        row2_frame.pack(fill=tk.X, pady=5)
+        
+        # 委托单位
+        client_label = ttk.Label(row2_frame, text="委托单位")
+        client_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.radio_client_entry = ttk.Entry(row2_frame, width=20)
+        self.radio_client_entry.pack(side=tk.LEFT, padx=(0, 20))
+        
+        # 操作指导书编号
+        guide_label = ttk.Label(row2_frame, text="操作指导书编号")
+        guide_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.radio_guide_entry = ttk.Entry(row2_frame, width=20)
+        self.radio_guide_entry.pack(side=tk.LEFT)
+        
+        # 第三行参数
+        row3_frame = ttk.Frame(params_grid)
+        row3_frame.pack(fill=tk.X, pady=5)
+        
+        # 承包单位
+        contract_label = ttk.Label(row3_frame, text="承包单位")
+        contract_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.radio_contract_entry = ttk.Entry(row3_frame, width=20)
+        self.radio_contract_entry.pack(side=tk.LEFT, padx=(0, 20))
+        
+        # 设备型号
+        equipment_label = ttk.Label(row3_frame, text="设备型号")
+        equipment_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.radio_equipment_entry = ttk.Entry(row3_frame, width=20)
+        self.radio_equipment_entry.pack(side=tk.LEFT)
+        
+        # 文件选择区域
+        files_frame = ttk.LabelFrame(parent_frame, text="文件选择")
+        files_frame.pack(fill=tk.X, pady=(0, 10), padx=5)
+        
+        # Excel文件选择
+        excel_frame = ttk.Frame(files_frame)
+        excel_frame.pack(fill=tk.X, padx=15, pady=(15, 8))
+        excel_label = ttk.Label(excel_frame, text="选择输入文件(xlsx)*")
+        excel_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.radio_excel_path = tk.StringVar()
+        self.radio_excel_path.set("生成器/Excel/4_生成器台账-射线检测记录.xlsx")  # 默认值
+        excel_entry = ttk.Entry(excel_frame, textvariable=self.radio_excel_path)
+        excel_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        excel_button = ttk.Button(excel_frame, text="浏览...", command=self.browse_radio_excel)
+        excel_button.pack(side=tk.LEFT)
+        
+        # Word模板选择
+        word_frame = ttk.Frame(files_frame)
+        word_frame.pack(fill=tk.X, padx=15, pady=8)
+        word_label = ttk.Label(word_frame, text="选择Word模板文件(docx)*")
+        word_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.radio_word_path = tk.StringVar()
+        self.radio_word_path.set("生成器/wod/4_射线检测记录.docx")  # 默认值
+        word_entry = ttk.Entry(word_frame, textvariable=self.radio_word_path)
+        word_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        word_button = ttk.Button(word_frame, text="浏览...", command=self.browse_radio_word)
+        word_button.pack(side=tk.LEFT)
+        
+        # 输出文件夹选择
+        output_frame = ttk.Frame(files_frame)
+        output_frame.pack(fill=tk.X, padx=15, pady=(8, 15))
+        output_label = ttk.Label(output_frame, text="选择输出文件夹*")
+        output_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.radio_output_path = tk.StringVar()
+        output_entry = ttk.Entry(output_frame, textvariable=self.radio_output_path)
+        output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        output_button = ttk.Button(output_frame, text="浏览...", command=self.browse_radio_output)
+        output_button.pack(side=tk.LEFT)
+        
+        # 提交按钮
+        submit_frame = ttk.Frame(parent_frame)
+        submit_frame.pack(fill=tk.X, pady=10)
+        self.radio_submit_button = ttk.Button(submit_frame, text="提交", 
+                                        style="Submit.TButton", command=self.process_radio_data)
+        self.radio_submit_button.pack(side=tk.RIGHT, padx=10)
+        
+        # 日志区域
+        log_frame = ttk.LabelFrame(parent_frame, text="执行日志")
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10), padx=5)
+        
+        # 创建滚动文本框
+        self.radio_log_text = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=10)
+        self.radio_log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.radio_log_text.configure(state='disabled')
+        
+        # 设置日志文本字体
+        self.radio_log_text.configure(font=(self.default_font, 9))
+        
+        # 日志操作按钮
+        log_buttons_frame = ttk.Frame(log_frame)
+        log_buttons_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+        
+        export_button = ttk.Button(log_buttons_frame, text="导出", 
+                                 style="Action.TButton", command=self.export_radio_log)
+        export_button.pack(side=tk.RIGHT, padx=5)
+        
+        clear_button = ttk.Button(log_buttons_frame, text="清空", 
+                                style="Action.TButton", command=self.clear_radio_log)
+        clear_button.pack(side=tk.RIGHT, padx=5)
+        
+        # 设置日志重定向
+        self.radio_redirect = RedirectText(self.radio_log_text)
     
     def create_status_bar(self):
         """创建状态栏"""
@@ -1016,6 +1156,154 @@ class NDTResultGUI:
         self.surface_log_text.insert(tk.END, message + "\n")
         self.surface_log_text.see(tk.END)  # 自动滚动到最新内容
         self.surface_log_text.configure(state='disabled')
+
+    def browse_radio_excel(self):
+        """浏览选择射线检测记录Excel文件"""
+        filename = filedialog.askopenfilename(
+            title="选择Excel文件",
+            filetypes=[("Excel文件", "*.xlsx *.xls")]
+        )
+        if filename:
+            self.radio_excel_path.set(filename)
+            
+    def browse_radio_word(self):
+        """浏览选择射线检测记录Word模板文件"""
+        filename = filedialog.askopenfilename(
+            title="选择Word模板文件",
+            filetypes=[("Word文件", "*.docx *.doc")]
+        )
+        if filename:
+            self.radio_word_path.set(filename)
+            
+    def browse_radio_output(self):
+        """浏览选择射线检测记录输出文件夹"""
+        directory = filedialog.askdirectory(title="选择输出文件夹")
+        if directory:
+            self.radio_output_path.set(directory)
+
+    def process_radio_data(self):
+        """处理射线检测记录数据"""
+        # 获取输入值
+        excel_path = self.radio_excel_path.get()
+        word_path = self.radio_word_path.get()
+        output_path = self.radio_output_path.get()
+        project_name = self.radio_project_entry.get()
+        client_name = self.radio_client_entry.get()
+        guide_number = self.radio_guide_entry.get()
+        contract_name = self.radio_contract_entry.get()
+        equipment_model = self.radio_equipment_entry.get()
+        
+        # 验证输入
+        if not excel_path or not os.path.exists(excel_path):
+            self.show_radio_log("错误: 请选择有效的Excel文件")
+            return
+        
+        if not word_path or not os.path.exists(word_path):
+            self.show_radio_log("错误: 请选择有效的Word模板文件")
+            return
+        
+        if not output_path:
+            # 使用默认输出路径
+            output_path = os.path.join("生成器", "输出报告", "4_射线检测记录")
+            self.radio_output_path.set(output_path)
+            self.show_radio_log(f"未指定输出文件夹，使用默认路径: {output_path}")
+            
+            # 确保目录存在
+            if not os.path.exists(output_path):
+                try:
+                    os.makedirs(output_path)
+                    self.show_radio_log(f"创建输出目录: {output_path}")
+                except Exception as e:
+                    self.show_radio_log(f"创建目录失败: {e}")
+                    return
+        
+        # 禁用提交按钮，避免重复提交
+        self.radio_submit_button.configure(state='disabled')
+        self.status_var.set("状态: 处理中...")
+        
+        # 显示开始信息
+        self.show_radio_log(f"开始处理数据: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.show_radio_log(f"Excel文件: {excel_path}")
+        self.show_radio_log(f"Word模板: {word_path}")
+        self.show_radio_log(f"输出路径: {output_path}")
+        self.show_radio_log(f"工程名称: {project_name}")
+        self.show_radio_log(f"委托单位: {client_name}")
+        self.show_radio_log(f"操作指导书编号: {guide_number}")
+        self.show_radio_log(f"承包单位: {contract_name}")
+        self.show_radio_log(f"设备型号: {equipment_model}")
+        self.show_radio_log("="*50)
+        
+        # 在后台线程中处理数据
+        threading.Thread(target=self.run_radio_process, args=(
+            excel_path, word_path, output_path, project_name, client_name, guide_number, 
+            contract_name, equipment_model
+        )).start()
+
+    def run_radio_process(self, excel_path, word_path, output_path, project_name, client_name, guide_number, 
+                          contract_name, equipment_model):
+        """在后台线程中运行射线检测记录处理"""
+        try:
+            # 导入Radio_test模块
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            import Radio_test
+            
+            # 重定向标准输出到日志区
+            with redirect_stdout(self.radio_redirect):
+                # 调用Radio_test模块的处理函数
+                success = Radio_test.process_excel_to_word(
+                    excel_path, word_path, output_path, project_name, client_name, guide_number, 
+                    contract_name, equipment_model
+                )
+            
+            # 在主线程中更新UI
+            self.root.after(0, self.process_radio_completed, success)
+            
+        except Exception as e:
+            # 在主线程中显示错误
+            self.root.after(0, self.show_radio_error, str(e))
+
+    def process_radio_completed(self, success):
+        """射线检测记录处理完成后的回调"""
+        if success:
+            self.status_var.set("状态: 完成")
+            self.show_radio_log("\n处理成功完成!")
+        else:
+            self.status_var.set("状态: 失败")
+            self.show_radio_log("\n处理失败!")
+            
+        # 重新启用提交按钮
+        self.radio_submit_button.configure(state='normal')
+        
+    def show_radio_error(self, error_msg):
+        """显示射线检测记录错误信息"""
+        self.show_radio_log(f"\n错误: {error_msg}")
+        self.status_var.set("状态: 处理出错")
+        self.radio_submit_button.configure(state='normal')
+
+    def clear_radio_log(self):
+        """清空射线检测记录日志"""
+        self.radio_log_text.configure(state='normal')
+        self.radio_log_text.delete(1.0, tk.END)
+        self.radio_log_text.configure(state='disabled')
+    
+    def export_radio_log(self):
+        """导出射线检测记录日志"""
+        filename = filedialog.asksaveasfilename(
+            title="导出日志",
+            defaultextension=".txt",
+            filetypes=[("文本文件", "*.txt")]
+        )
+        if filename:
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(self.radio_log_text.get(1.0, tk.END))
+            self.show_radio_log(f"日志已导出到: {filename}")
+    
+    def show_radio_log(self, message):
+        """在射线检测记录日志区显示消息"""
+        self.radio_log_text.configure(state='normal')
+        self.radio_log_text.insert(tk.END, message + "\n")
+        self.radio_log_text.see(tk.END)  # 自动滚动到最新内容
+        self.radio_log_text.configure(state='disabled')
 
 if __name__ == "__main__":
     root = tk.Tk()
