@@ -8,8 +8,14 @@ import re
 
 def find_column_with_keyword(df, keyword):
     """查找包含指定关键字的列"""
-    matching_cols = [col for col in df.columns if keyword.lower() in col.lower()]
-    return matching_cols[0] if matching_cols else None
+    # 首先尝试精确匹配
+    exact_matches = [col for col in df.columns if col.strip() == keyword.strip()]
+    if exact_matches:
+        return exact_matches[0]
+    
+    # 如果没有精确匹配，再尝试部分匹配
+    partial_matches = [col for col in df.columns if keyword.lower() in col.lower()]
+    return partial_matches[0] if partial_matches else None
 
 def get_output_filename(word_template_path, order_number, ray_type):
     """根据Word模板路径、委托单编号和射线类型生成输出文件名
@@ -83,7 +89,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
         '焊口编号': '焊口编号',
         '焊工号': '焊工号',
         '规格': '规格',
-        'γ射线': 'γ射线'
+        'γ射线': 'γ射线',
+        '张数': '张数'  # 确保精确匹配"张数"列
     }
     
     # 查找每个关键字对应的实际列名
@@ -108,7 +115,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
             '焊口编号': 'E', 
             '焊工号': 'F',
             '规格': 'G',
-            'γ射线': 'P'
+            'γ射线': 'P',
+            '张数': 'M'  # 明确指定张数列为M列
         }
         
         for key in missing_columns:
@@ -118,6 +126,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
                 if col_idx < len(df.columns):
                     column_mapping[key] = df.columns[col_idx]
                     print(f"使用列位置找到: '{key}' -> '{df.columns[col_idx]}'")
+                else:
+                    print(f"警告: 列位置 {col_letter} 超出范围，无法找到 '{key}'")
     
     # 如果缺少关键列，则无法继续处理
     if '委托单编号' not in column_mapping:
@@ -225,10 +235,66 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
                 year, month, day = datetime.now().year, datetime.now().month, datetime.now().day
             
             # 获取相关数据
-            inspection_numbers = group_df[column_mapping.get('检件编号')].dropna().tolist() if '检件编号' in column_mapping else []
-            weld_numbers = group_df[column_mapping.get('焊口编号')].dropna().tolist() if '焊口编号' in column_mapping else []
-            welder_numbers = group_df[column_mapping.get('焊工号')].dropna().tolist() if '焊工号' in column_mapping else []
-            specifications = group_df[column_mapping.get('规格')].dropna().tolist() if '规格' in column_mapping else []
+            inspection_numbers = []
+            weld_numbers = []
+            welder_numbers = []
+            specifications = []
+            sheet_counts = []
+            
+            # 直接从DataFrame中获取数据
+            for i in range(len(group_df)):
+                if i < len(group_df):
+                    # 获取当前行的各列值
+                    inspection_number = group_df.iloc[i][column_mapping['检件编号']] if '检件编号' in column_mapping else ""
+                    weld_number = group_df.iloc[i][column_mapping['焊口编号']] if '焊口编号' in column_mapping else ""
+                    welder_number = group_df.iloc[i][column_mapping['焊工号']] if '焊工号' in column_mapping else ""
+                    specification = group_df.iloc[i][column_mapping['规格']] if '规格' in column_mapping else ""
+                    
+                    # 添加到对应的列表
+                    inspection_numbers.append(str(inspection_number))
+                    weld_numbers.append(str(weld_number))
+                    welder_numbers.append(str(welder_number))
+                    specifications.append(str(specification))
+                    
+                    # 处理张数
+                    if '张数' in column_mapping:
+                        sheet_count_raw = group_df.iloc[i][column_mapping['张数']]
+                        print(f"行 {i+1} 检件编号 {inspection_number} 原始张数值: '{sheet_count_raw}' (类型: {type(sheet_count_raw).__name__})")
+                        
+                        # 确保张数是数值类型
+                        try:
+                            if pd.isna(sheet_count_raw):
+                                print(f"警告: 行 {i+1} 检件编号 {inspection_number} 的张数值为NaN，默认为1")
+                                sheet_count = 1
+                            else:
+                                # 尝试从"180*80/3张"这种格式中提取数字
+                                if isinstance(sheet_count_raw, str) and '张' in sheet_count_raw:
+                                    # 使用正则表达式提取斜杠后、张字前的数字
+                                    match = re.search(r'/(\d+)张', sheet_count_raw)
+                                    if match:
+                                        sheet_count = int(match.group(1))
+                                        print(f"从字符串 '{sheet_count_raw}' 中提取到张数: {sheet_count}")
+                                    else:
+                                        # 如果没有找到匹配的模式，默认为1
+                                        print(f"无法从 '{sheet_count_raw}' 中提取张数，默认为1")
+                                        sheet_count = 1
+                                else:
+                                    # 尝试直接转换为整数
+                                    sheet_count = int(float(sheet_count_raw))
+                                    print(f"行 {i+1} 检件编号 {inspection_number} 的张数值转换为: {sheet_count}")
+                        except (ValueError, TypeError) as e:
+                            print(f"警告: 行 {i+1} 检件编号 {inspection_number} 的张数值 '{sheet_count_raw}' 转换失败: {e}，默认为1")
+                            sheet_count = 1
+                        sheet_counts.append(sheet_count)
+                    else:
+                        sheet_counts.append(1)  # 默认为1
+            
+            if '张数' in column_mapping:
+                print(f"\n张数列名: '{column_mapping['张数']}'")
+                print(f"张数列所有值: {group_df[column_mapping['张数']].tolist()}")
+                print(f"最终获取到的张数数据: {sheet_counts}")
+            else:
+                print("未找到张数列，默认所有记录的张数为1")
             
             # 替换文档中的值
             print("\n==== 开始替换文档中的值 ====")
@@ -308,6 +374,9 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
                     for j, cell in enumerate(row.cells):
                         cell_text = cell.text.strip()
                         
+                        # 打印表格单元格内容，帮助调试
+                        print(f"表格单元格[{i},{j}]内容: '{cell_text}'")
+                        
                         if "检件编号" in cell_text:
                             column_indices["检件编号"] = j
                             header_row_index = i
@@ -325,11 +394,35 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
                             column_indices["规格"] = j
                             header_found = True
                             print(f"找到规格列: 行 {i+1}, 列 {j+1}")
+                        elif "片号" in cell_text:
+                            column_indices["片号"] = j
+                            header_found = True
+                            print(f"找到片号列: 行 {i+1}, 列 {j+1}")
                     
                     if header_found and header_row_index >= 0:
                         print(f"找到表头行: 第{header_row_index+1}行")
                         print(f"列索引: {column_indices}")
                         break
+                
+                # 如果没有找到某些列，尝试通过位置确定
+                if "片号" not in column_indices and header_row_index >= 0:
+                    # 片号通常在焊缝编号和焊工号之间，尝试通过位置确定
+                    if "焊缝编号" in column_indices and "焊工号" in column_indices:
+                        expected_pos = min(column_indices["焊缝编号"] + 1, column_indices["焊工号"])
+                        column_indices["片号"] = expected_pos
+                        print(f"通过位置推断片号列: 列 {expected_pos+1}")
+                    elif len(table.rows[header_row_index].cells) > 2:
+                        # 如果没有找到焊缝编号和焊工号，但表格有足够的列，假设片号在第3列
+                        column_indices["片号"] = 2
+                        print(f"默认片号列位置: 列 3")
+                
+                if "焊缝编号" not in column_indices and header_row_index >= 0:
+                    # 如果没有找到焊缝编号列，但找到了检件编号列，假设焊缝编号在检件编号后一列
+                    if "检件编号" in column_indices and len(table.rows[header_row_index].cells) > 1:
+                        column_indices["焊缝编号"] = column_indices["检件编号"] + 1
+                        print(f"通过位置推断焊缝编号列: 列 {column_indices['焊缝编号']+1}")
+                
+                print(f"最终确定的列索引: {column_indices}")
                 
                 # 如果找到表头行，处理数据填充
                 if header_row_index >= 0 and column_indices:
@@ -359,51 +452,200 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
                         
                         # 添加新行
                         for _ in range(rows_needed):
-                            # 在表格末尾添加一行
+                            # 在最后一行之后添加一行
                             new_row = table.add_row()
                             data_rows.append(len(table.rows) - 1)  # 添加新行的索引
                     
-                    # 处理每一行数据
+                    # 对于张数≥6的情况，我们需要确保有足够的行来填写所有片号
+                    # 检查是否需要添加额外的行来显示完整的片号序列
+                    extra_rows_needed = 0
+                    extra_rows_for_inspection = {}  # 记录每个检件编号需要的额外行数
+                    
                     for i in range(data_count):
-                        if i < len(data_rows):
-                            row_idx = data_rows[i]
-                            row = table.rows[row_idx]
+                        if i < len(sheet_counts) and sheet_counts[i] >= 6:
+                            # 每个张数≥6的检件编号需要张数个行
+                            extra_needed = sheet_counts[i] - 1  # 减1是因为已经计算了一行
+                            extra_rows_needed += extra_needed
+                            # 记录该检件编号需要的额外行数
+                            inspection_number = inspection_numbers[i]
+                            extra_rows_for_inspection[inspection_number] = extra_needed
+                    
+                    if extra_rows_needed > 0:
+                        print(f"为了显示完整的片号序列，需要额外添加{extra_rows_needed}行")
+                    
+                    # 处理每一行数据
+                    row_index = 0  # 用于跟踪当前处理的行索引
+                    processed_rows = 0  # 已处理的行数
+                    
+                    # 首先计算每个检件编号需要的行数
+                    inspection_rows_needed = {}
+                    for i in range(len(inspection_numbers)):
+                        current_inspection = inspection_numbers[i]
+                        current_sheet_count = sheet_counts[i] if i < len(sheet_counts) else 1
+                        
+                        # 对于张数≥6的情况，需要生成多行
+                        rows_to_generate = current_sheet_count if current_sheet_count >= 6 else 1
+                        
+                        if current_inspection in inspection_rows_needed:
+                            inspection_rows_needed[current_inspection] += rows_to_generate
+                        else:
+                            inspection_rows_needed[current_inspection] = rows_to_generate
+                    
+                    print(f"每个检件编号需要的行数: {inspection_rows_needed}")
+                    
+                    # 处理每个检件编号
+                    for i in range(data_count):
+                        if i < len(inspection_numbers):
+                            current_inspection = inspection_numbers[i]
+                            current_weld = weld_numbers[i] if i < len(weld_numbers) else ""
+                            current_welder = welder_numbers[i] if i < len(welder_numbers) else ""
+                            current_spec = specifications[i] if i < len(specifications) else ""
+                            current_sheet_count = sheet_counts[i] if i < len(sheet_counts) else 1
                             
-                            # 1. 填写检件编号
-                            if "检件编号" in column_indices and i < len(inspection_numbers):
-                                col_idx = column_indices["检件编号"]
-                                if col_idx < len(row.cells):
-                                    cell = row.cells[col_idx]
-                                    if cell.paragraphs:
-                                        cell.paragraphs[0].text = str(inspection_numbers[i])
-                                        print(f"已更新第{row_idx+1}行检件编号: {inspection_numbers[i]}")
+                            # 对于张数≥6的情况，需要生成多行
+                            rows_to_generate = current_sheet_count if current_sheet_count >= 6 else 1
                             
-                            # 2. 填写焊缝编号
-                            if "焊缝编号" in column_indices and i < len(weld_numbers):
-                                col_idx = column_indices["焊缝编号"]
-                                if col_idx < len(row.cells):
-                                    cell = row.cells[col_idx]
-                                    if cell.paragraphs:
-                                        cell.paragraphs[0].text = str(weld_numbers[i])
-                                        print(f"已更新第{row_idx+1}行焊缝编号: {weld_numbers[i]}")
+                            # 检查是否需要为当前检件编号添加行
+                            if row_index + rows_to_generate > len(data_rows):
+                                # 计算需要添加的行数
+                                rows_needed = row_index + rows_to_generate - len(data_rows)
+                                print(f"为检件编号 {current_inspection} 添加 {rows_needed} 行")
+                                
+                                # 在当前位置插入新行
+                                for _ in range(rows_needed):
+                                    # 如果当前位置有效，在当前位置之后插入新行
+                                    if row_index > 0 and row_index <= len(data_rows):
+                                        # 获取当前行的索引
+                                        current_row_idx = data_rows[row_index - 1] if row_index - 1 < len(data_rows) else len(table.rows) - 1
+                                        
+                                        # 在当前行之后插入新行
+                                        new_row = table.add_row()
+                                        
+                                        # 将新行移动到当前行之后
+                                        # 注意：python-docx不直接支持在特定位置插入行，所以我们需要记录行索引
+                                        new_row_idx = len(table.rows) - 1
+                                        data_rows.insert(row_index, new_row_idx)
+                                    else:
+                                        # 如果是在末尾添加行
+                                        new_row = table.add_row()
+                                        data_rows.append(len(table.rows) - 1)
                             
-                            # 3. 填写焊工号
-                            if "焊工号" in column_indices and i < len(welder_numbers):
-                                col_idx = column_indices["焊工号"]
-                                if col_idx < len(row.cells):
-                                    cell = row.cells[col_idx]
-                                    if cell.paragraphs:
-                                        cell.paragraphs[0].text = str(welder_numbers[i])
-                                        print(f"已更新第{row_idx+1}行焊工号: {welder_numbers[i]}")
-                            
-                            # 4. 填写规格
-                            if "规格" in column_indices and i < len(specifications):
-                                col_idx = column_indices["规格"]
-                                if col_idx < len(row.cells):
-                                    cell = row.cells[col_idx]
-                                    if cell.paragraphs:
-                                        cell.paragraphs[0].text = str(specifications[i])
-                                        print(f"已更新第{row_idx+1}行规格: {specifications[i]}")
+                            # 填写当前检件编号的所有行
+                            for j in range(rows_to_generate):
+                                if row_index < len(data_rows):
+                                    row_idx = data_rows[row_index]
+                                    row = table.rows[row_idx]
+                                    
+                                    # 1. 填写检件编号
+                                    if "检件编号" in column_indices:
+                                        col_idx = column_indices["检件编号"]
+                                        if col_idx < len(row.cells):
+                                            cell = row.cells[col_idx]
+                                            if cell.paragraphs:
+                                                cell.paragraphs[0].text = str(current_inspection)
+                                                print(f"已更新第{row_idx+1}行检件编号: {current_inspection}")
+                                    
+                                    # 2. 填写焊缝编号
+                                    if "焊缝编号" in column_indices:
+                                        col_idx = column_indices["焊缝编号"]
+                                        if col_idx < len(row.cells):
+                                            cell = row.cells[col_idx]
+                                            if cell.paragraphs:
+                                                # 确保单元格内容被完全替换
+                                                if cell.paragraphs[0].text:
+                                                    cell.paragraphs[0].text = ""
+                                                cell.paragraphs[0].text = str(current_weld)
+                                                print(f"已更新第{row_idx+1}行焊缝编号: {current_weld}")
+                                    
+                                    # 3. 填写焊工号
+                                    if "焊工号" in column_indices:
+                                        col_idx = column_indices["焊工号"]
+                                        if col_idx < len(row.cells):
+                                            cell = row.cells[col_idx]
+                                            if cell.paragraphs:
+                                                cell.paragraphs[0].text = str(current_welder)
+                                                print(f"已更新第{row_idx+1}行焊工号: {current_welder}")
+                                    
+                                    # 4. 填写规格
+                                    if "规格" in column_indices:
+                                        col_idx = column_indices["规格"]
+                                        if col_idx < len(row.cells):
+                                            cell = row.cells[col_idx]
+                                            if cell.paragraphs:
+                                                cell.paragraphs[0].text = str(current_spec)
+                                                print(f"已更新第{row_idx+1}行规格: {current_spec}")
+                                    
+                                    # 5. 填写片号
+                                    if "片号" in column_indices:
+                                        col_idx = column_indices["片号"]
+                                        if col_idx < len(row.cells):
+                                            cell = row.cells[col_idx]
+                                            
+                                            # 确定当前行是该检件编号的第几个实例
+                                            current_index_in_group = j
+                                            
+                                            # 根据张数规则确定片号
+                                            film_number = ""
+                                            
+                                            if current_sheet_count in [1, 4, 5]:
+                                                # 不填写片号
+                                                film_number = ""
+                                                print(f"张数为 {current_sheet_count}，片号保持为空")
+                                            elif current_sheet_count == 2:
+                                                # 依次填写1，2
+                                                if current_index_in_group < 2:
+                                                    film_number = str(current_index_in_group + 1)
+                                                    print(f"张数为 2，当前是第 {current_index_in_group + 1} 个实例，片号为: {film_number}")
+                                            elif current_sheet_count == 3:
+                                                # 依次填写1，2，3
+                                                if current_index_in_group < 3:
+                                                    film_number = str(current_index_in_group + 1)
+                                                    print(f"张数为 3，当前是第 {current_index_in_group + 1} 个实例，片号为: {film_number}")
+                                            elif current_sheet_count >= 6:
+                                                # 依次填写1-2，2-3，3-4，...，(N-1)-N，N-1
+                                                if current_index_in_group < current_sheet_count:
+                                                    if current_index_in_group < current_sheet_count - 1:
+                                                        # 对于前N-1个实例，填写 i-(i+1)
+                                                        film_number = f"{current_index_in_group + 1}-{current_index_in_group + 2}"
+                                                    else:
+                                                        # 对于第N个实例，填写 N-1
+                                                        film_number = f"{current_sheet_count}-1"
+                                                    print(f"张数为 {current_sheet_count}，当前是第 {current_index_in_group + 1} 个实例，片号为: {film_number}")
+                                            
+                                            # 打印当前单元格状态
+                                            print(f"片号单元格当前内容: '{cell.text}'")
+                                            
+                                            # 确保单元格内容被完全替换
+                                            try:
+                                                # 先清空单元格的所有内容
+                                                for p in cell.paragraphs:
+                                                    p.clear()
+                                                
+                                                # 如果没有段落，添加一个新段落
+                                                if len(cell.paragraphs) == 0:
+                                                    p = cell.add_paragraph()
+                                                
+                                                # 设置片号文本
+                                                run = cell.paragraphs[0].add_run(film_number)
+                                                
+                                                if film_number:
+                                                    print(f"已更新第{row_idx+1}行片号: '{film_number}'")
+                                                else:
+                                                    print(f"第{row_idx+1}行片号保留为空")
+                                            except Exception as e:
+                                                print(f"设置片号时出错: {e}")
+                                                # 尝试另一种方式
+                                                try:
+                                                    if len(cell.paragraphs) > 0:
+                                                        cell.paragraphs[0].text = film_number
+                                                    else:
+                                                        cell.text = film_number
+                                                    print(f"使用备用方法设置片号: '{film_number}'")
+                                                except Exception as e2:
+                                                    print(f"备用方法也失败: {e2}")
+                                    
+                                    row_index += 1
+                                    processed_rows += 1
             
             print("==== 文档填充完成 ====\n")
             
