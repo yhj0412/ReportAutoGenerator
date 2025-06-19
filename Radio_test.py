@@ -29,13 +29,21 @@ def get_output_filename(word_template_path, order_number, ray_type):
     # 生成输出文件名
     return f"{template_name}_{order_number}_{ray_mark}_生成结果.docx"
 
-def process_excel_to_word(excel_path, word_template_path, output_path=None):
+def process_excel_to_word(excel_path, word_template_path, output_path=None, 
+                       project_name=None, entrusting_unit=None, 
+                       operation_guide_number=None, contracting_unit=None, 
+                       equipment_model=None):
     """将Excel数据填入Word文档
     
     Args:
         excel_path: Excel表格路径
         word_template_path: Word模板文档路径
         output_path: 输出Word文档路径（如果为None，将自动生成）
+        project_name: 工程名称，用于替换文档中的"工程名称值"
+        entrusting_unit: 委托单位，用于替换文档中的"委托单位值"
+        operation_guide_number: 操作指导书编号，用于替换文档中的"操作指导书编号值"
+        contracting_unit: 承包单位，用于替换文档中的"承包单位值"
+        equipment_model: 设备型号，用于替换文档中的"设备型号值"
     
     Returns:
         bool: 处理是否成功
@@ -375,6 +383,32 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
                     paragraph.text = paragraph.text.replace("胶片等级值", film_grade)
                     print(f"已将段落中的'胶片等级值'替换为'{film_grade}'")
                     replaced = True
+                
+                # 新增的5个参数替换
+                if "工程名称值" in paragraph.text and project_name:
+                    paragraph.text = paragraph.text.replace("工程名称值", project_name)
+                    print(f"已将段落中的'工程名称值'替换为'{project_name}'")
+                    replaced = True
+                
+                if "委托单位值" in paragraph.text and entrusting_unit:
+                    paragraph.text = paragraph.text.replace("委托单位值", entrusting_unit)
+                    print(f"已将段落中的'委托单位值'替换为'{entrusting_unit}'")
+                    replaced = True
+                
+                if "操作指导书编号值" in paragraph.text and operation_guide_number:
+                    paragraph.text = paragraph.text.replace("操作指导书编号值", operation_guide_number)
+                    print(f"已将段落中的'操作指导书编号值'替换为'{operation_guide_number}'")
+                    replaced = True
+                
+                if "承包单位值" in paragraph.text and contracting_unit:
+                    paragraph.text = paragraph.text.replace("承包单位值", contracting_unit)
+                    print(f"已将段落中的'承包单位值'替换为'{contracting_unit}'")
+                    replaced = True
+                
+                if "设备型号值" in paragraph.text and equipment_model:
+                    paragraph.text = paragraph.text.replace("设备型号值", equipment_model)
+                    print(f"已将段落中的'设备型号值'替换为'{equipment_model}'")
+                    replaced = True
             
             # 遍历表格中的单元格，替换关键词
             for table in doc.tables:
@@ -424,6 +458,32 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None):
                             if "胶片等级值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("胶片等级值", film_grade)
                                 print(f"已将表格单元格中的'胶片等级值'替换为'{film_grade}'")
+                                replaced = True
+                            
+                            # 新增的5个参数替换（表格单元格）
+                            if "工程名称值" in paragraph.text and project_name:
+                                paragraph.text = paragraph.text.replace("工程名称值", project_name)
+                                print(f"已将表格单元格中的'工程名称值'替换为'{project_name}'")
+                                replaced = True
+                            
+                            if "委托单位值" in paragraph.text and entrusting_unit:
+                                paragraph.text = paragraph.text.replace("委托单位值", entrusting_unit)
+                                print(f"已将表格单元格中的'委托单位值'替换为'{entrusting_unit}'")
+                                replaced = True
+                            
+                            if "操作指导书编号值" in paragraph.text and operation_guide_number:
+                                paragraph.text = paragraph.text.replace("操作指导书编号值", operation_guide_number)
+                                print(f"已将表格单元格中的'操作指导书编号值'替换为'{operation_guide_number}'")
+                                replaced = True
+                            
+                            if "承包单位值" in paragraph.text and contracting_unit:
+                                paragraph.text = paragraph.text.replace("承包单位值", contracting_unit)
+                                print(f"已将表格单元格中的'承包单位值'替换为'{contracting_unit}'")
+                                replaced = True
+                            
+                            if "设备型号值" in paragraph.text and equipment_model:
+                                paragraph.text = paragraph.text.replace("设备型号值", equipment_model)
+                                print(f"已将表格单元格中的'设备型号值'替换为'{equipment_model}'")
                                 replaced = True
             
             if not replaced:
@@ -851,11 +911,28 @@ def main():
     parser.add_argument('-o', '--output', 
                         help='输出目录 (可选，默认为"生成器/输出报告/4_射线检测记录"目录)')
     
+    # 新增5个命令行参数
+    parser.add_argument('-p', '--project', 
+                        help='工程名称，用于替换文档中的"工程名称值"')
+    parser.add_argument('-u', '--entrusting_unit', 
+                        help='委托单位，用于替换文档中的"委托单位值"')
+    parser.add_argument('-g', '--guide_number', 
+                        help='操作指导书编号，用于替换文档中的"操作指导书编号值"')
+    parser.add_argument('-c', '--contracting_unit', 
+                        help='承包单位，用于替换文档中的"承包单位值"')
+    parser.add_argument('-m', '--equipment_model', 
+                        help='设备型号，用于替换文档中的"设备型号值"')
+    
     # 解析命令行参数
     args = parser.parse_args()
     
     # 处理Excel到Word的转换
-    success = process_excel_to_word(args.excel, args.word, args.output)
+    success = process_excel_to_word(
+        args.excel, args.word, args.output,
+        args.project, args.entrusting_unit,
+        args.guide_number, args.contracting_unit,
+        args.equipment_model
+    )
     
     # 返回状态码
     sys.exit(0 if success else 1)
