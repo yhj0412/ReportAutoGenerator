@@ -489,13 +489,15 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                     extra_rows_for_inspection = {}  # 记录每个检件编号需要的额外行数
                     
                     for i in range(data_count):
-                        if i < len(sheet_counts) and sheet_counts[i] >= 6:
-                            # 每个张数≥6的检件编号需要张数个行
-                            extra_needed = sheet_counts[i] - 1  # 减1是因为已经计算了一行
-                            extra_rows_needed += extra_needed
-                            # 记录该检件编号需要的额外行数
-                            inspection_number = inspection_numbers[i]
-                            extra_rows_for_inspection[inspection_number] = extra_needed
+                        if i < len(sheet_counts):
+                            # 修改逻辑：当张数为2或3时，也需要额外行
+                            if sheet_counts[i] >= 6 or sheet_counts[i] in [2, 3]:
+                                # 每个符合条件的检件编号需要张数个行
+                                extra_needed = sheet_counts[i] - 1  # 减1是因为已经计算了一行
+                                extra_rows_needed += extra_needed
+                                # 记录该检件编号需要的额外行数
+                                inspection_number = inspection_numbers[i]
+                                extra_rows_for_inspection[inspection_number] = extra_needed
                     
                     if extra_rows_needed > 0:
                         print(f"为了显示完整的片号序列，需要额外添加{extra_rows_needed}行")
@@ -511,7 +513,11 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                         current_sheet_count = sheet_counts[i] if i < len(sheet_counts) else 1
                         
                         # 对于张数≥6的情况，需要生成多行
-                        rows_to_generate = current_sheet_count if current_sheet_count >= 6 else 1
+                        # 修改逻辑：当张数为2或3时，也生成对应数量的行
+                        if current_sheet_count >= 6 or current_sheet_count in [2, 3]:
+                            rows_to_generate = current_sheet_count
+                        else:
+                            rows_to_generate = 1
                         
                         if current_inspection in inspection_rows_needed:
                             inspection_rows_needed[current_inspection] += rows_to_generate
@@ -529,8 +535,12 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                             current_spec = specifications[i] if i < len(specifications) else ""
                             current_sheet_count = sheet_counts[i] if i < len(sheet_counts) else 1
                             
-                            # 对于张数≥6的情况，需要生成多行
-                            rows_to_generate = current_sheet_count if current_sheet_count >= 6 else 1
+                            # 对于张数≥6或张数为2、3的情况，需要生成多行
+                            # 修改逻辑：当张数为2或3时，也生成对应数量的行
+                            if current_sheet_count >= 6 or current_sheet_count in [2, 3]:
+                                rows_to_generate = current_sheet_count
+                            else:
+                                rows_to_generate = 1
                             
                             # 检查是否需要为当前检件编号添加行
                             if row_index + rows_to_generate > len(data_rows):
