@@ -58,7 +58,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
     template_name = os.path.splitext(os.path.basename(word_template_path))[0]
     
     # 创建输出目录
-    output_dir = os.path.join("生成器", "输出报告", template_name) if output_path is None else output_path
+    output_dir = os.path.join("生成器", "输出报告","1_射线检测委托台账", template_name) if output_path is None else output_path
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         print(f"创建输出目录: {output_dir}")
@@ -496,7 +496,7 @@ def main():
     parser.add_argument('-w', '--word', default="生成器/wod/1_射线检测委托台账_Mode2.docx", 
                        help='Word模板文档路径 (默认: 生成器/wod/1_射线检测委托台账_Mode2.docx)')
     parser.add_argument('-o', '--output', 
-                       help='输出目录路径 (可选，默认为"生成器/输出报告/1_射线检测委托台账_Mode2"目录)')
+                       help='输出目录路径 (可选，默认为"生成器/输出报告/1_射线检测委托台账/1_射线检测委托台账_Mode2"目录)')
     parser.add_argument('-p', '--project', 
                        help='工程名称，用于替换文档中的"工程名称值"')
     parser.add_argument('-c', '--category', 
