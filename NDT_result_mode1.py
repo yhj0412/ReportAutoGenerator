@@ -80,7 +80,15 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
         return False
     
     # 创建输出目录
-    output_dir = os.path.join("生成器", "输出报告", "2_RT结果通知单台账_Mode", "2_RT结果通知单台账_Mode1")
+    if output_path:
+        # 使用GUI传递的输出路径
+        output_dir = output_path
+        print(f"使用GUI指定的输出路径: {output_dir}")
+    else:
+        # 使用默认输出路径
+        output_dir = os.path.join("生成器", "输出报告", "2_RT结果通知单台账", "2_RT结果通知单台账_Mode1")
+        print(f"使用默认输出路径: {output_dir}")
+
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         print(f"创建输出目录: {output_dir}")
@@ -217,29 +225,59 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                 # 替换文档中的参数值
                 if any([project_name, client_name, inspection_unit, inspection_standard, inspection_method]):
                     print("\n==== 开始替换参数值 ====")
-                    
+                    print(f"传入的参数值:")
+                    print(f"  工程名称: {project_name}")
+                    print(f"  委托单位: {client_name}")
+                    print(f"  检测单位: {inspection_unit}")
+                    print(f"  检测标准: {inspection_standard}")
+                    print(f"  检测方法: {inspection_method}")
+
                     # 遍历所有段落和表格中的单元格，替换参数值
                     # 1. 遍历段落
                     for paragraph in doc.paragraphs:
                         if project_name and "工程名称值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("工程名称值", project_name)
                             print(f"已将段落中的'工程名称值'替换为'{project_name}'")
-                        
+
                         if client_name and "委托单位值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("委托单位值", client_name)
                             print(f"已将段落中的'委托单位值'替换为'{client_name}'")
-                        
+
                         if inspection_unit and "检测单位值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("检测单位值", inspection_unit)
                             print(f"已将段落中的'检测单位值'替换为'{inspection_unit}'")
-                        
+
                         if inspection_standard and "检测标准值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("检测标准值", inspection_standard)
                             print(f"已将段落中的'检测标准值'替换为'{inspection_standard}'")
-                        
+
                         if inspection_method and "检测方法值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("检测方法值", inspection_method)
                             print(f"已将段落中的'检测方法值'替换为'{inspection_method}'")
+
+                    # 2. 遍历表格中的单元格，替换参数值
+                    for table in doc.tables:
+                        for row in table.rows:
+                            for cell in row.cells:
+                                if project_name and "工程名称值" in cell.text:
+                                    cell.text = cell.text.replace("工程名称值", project_name)
+                                    print(f"已将表格中的'工程名称值'替换为'{project_name}'")
+
+                                if client_name and "委托单位值" in cell.text:
+                                    cell.text = cell.text.replace("委托单位值", client_name)
+                                    print(f"已将表格中的'委托单位值'替换为'{client_name}'")
+
+                                if inspection_unit and "检测单位值" in cell.text:
+                                    cell.text = cell.text.replace("检测单位值", inspection_unit)
+                                    print(f"已将表格中的'检测单位值'替换为'{inspection_unit}'")
+
+                                if inspection_standard and "检测标准值" in cell.text:
+                                    cell.text = cell.text.replace("检测标准值", inspection_standard)
+                                    print(f"已将表格中的'检测标准值'替换为'{inspection_standard}'")
+
+                                if inspection_method and "检测方法值" in cell.text:
+                                    cell.text = cell.text.replace("检测方法值", inspection_method)
+                                    print(f"已将表格中的'检测方法值'替换为'{inspection_method}'")
                 
                 # 处理单值替换（合格级别、单元名称、完成日期）
                 print("\n==== 开始处理单值替换 ====")

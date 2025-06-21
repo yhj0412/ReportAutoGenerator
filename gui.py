@@ -10,6 +10,7 @@ from datetime import datetime
 # 导入NDT_result模块
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import NDT_result
+import NDT_result_mode1
 
 class RedirectText:
     """用于重定向stdout到Text控件"""
@@ -328,48 +329,77 @@ class NDTResultGUI:
     def create_rt_result_frame(self, parent_frame):
         """创建RT结果通知单台账模块的内容"""
         parent_frame.pack(fill=tk.BOTH, expand=True)
-        
+
         # 模块标题
         header_frame = ttk.Frame(parent_frame)
         header_frame.pack(fill=tk.X, pady=(0, 15))
-        header_label = ttk.Label(header_frame, text="RT结果通知单台账", 
+        header_label = ttk.Label(header_frame, text="RT结果通知单台账",
                                 style="ContentHeader.TLabel")
         header_label.pack(side=tk.LEFT, padx=5)
-        
+
         # 参数设置区域
         params_frame = ttk.LabelFrame(parent_frame, text="参数设置")
         params_frame.pack(fill=tk.X, pady=(0, 10), padx=5)
-        
+
         # 创建参数行
         params_grid = ttk.Frame(params_frame)
         params_grid.pack(fill=tk.X, padx=15, pady=15)
-        
-        # 第一行参数
+
+        # 第一行参数 - 模板选择
+        row0_frame = ttk.Frame(params_grid)
+        row0_frame.pack(fill=tk.X, pady=5)
+
+        # 模板选择
+        template_label = ttk.Label(row0_frame, text="模板")
+        template_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.template_var = tk.StringVar()
+        self.template_combobox = ttk.Combobox(row0_frame, textvariable=self.template_var,
+                                            values=["模板1", "模板2"], state="readonly", width=15)
+        self.template_combobox.set("模板2")  # 默认选择模板2
+        self.template_combobox.pack(side=tk.LEFT, padx=(0, 20))
+        self.template_combobox.bind("<<ComboboxSelected>>", self.on_template_change)
+
+        # 第二行参数
         row1_frame = ttk.Frame(params_grid)
         row1_frame.pack(fill=tk.X, pady=5)
-        
+
         # 工程名称
         project_label = ttk.Label(row1_frame, text="工程名称")
         project_label.pack(side=tk.LEFT, padx=(0, 5))
         self.project_entry = ttk.Entry(row1_frame, width=40)
         self.project_entry.pack(side=tk.LEFT, padx=(0, 5))
-        
-        # 第二行参数
+
+        # 第三行参数
         row2_frame = ttk.Frame(params_grid)
         row2_frame.pack(fill=tk.X, pady=5)
-        
+
         # 委托单位
         client_label = ttk.Label(row2_frame, text="委托单位")
         client_label.pack(side=tk.LEFT, padx=(0, 5))
         self.client_entry = ttk.Entry(row2_frame, width=20)
         self.client_entry.pack(side=tk.LEFT, padx=(0, 30))
-        
+
         # 检测方法
         method_label = ttk.Label(row2_frame, text="检测方法")
         method_label.pack(side=tk.LEFT, padx=(0, 5))
         self.method_entry = ttk.Entry(row2_frame, width=20)
         self.method_entry.insert(0, "RT")  # 默认值
         self.method_entry.pack(side=tk.LEFT)
+
+        # 第四行参数 - 模板1专用参数（初始隐藏）
+        self.row3_frame = ttk.Frame(params_grid)
+
+        # 检测单位
+        inspection_unit_label = ttk.Label(self.row3_frame, text="检测单位")
+        inspection_unit_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.inspection_unit_entry = ttk.Entry(self.row3_frame, width=20)
+        self.inspection_unit_entry.pack(side=tk.LEFT, padx=(0, 30))
+
+        # 检测标准
+        inspection_standard_label = ttk.Label(self.row3_frame, text="检测标准")
+        inspection_standard_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.inspection_standard_entry = ttk.Entry(self.row3_frame, width=20)
+        self.inspection_standard_entry.pack(side=tk.LEFT)
         
         # 文件选择区域
         files_frame = ttk.LabelFrame(parent_frame, text="文件选择")
@@ -441,6 +471,19 @@ class NDTResultGUI:
         
         # 设置日志重定向
         self.redirect = RedirectText(self.log_text)
+
+    def on_template_change(self, event=None):
+        """模板选择变化时的回调函数"""
+        selected_template = self.template_var.get()
+
+        if selected_template == "模板1":
+            # 显示模板1专用参数
+            self.row3_frame.pack(fill=tk.X, pady=5)
+            print("切换到模板1，显示检测单位和检测标准参数")
+        else:
+            # 隐藏模板1专用参数
+            self.row3_frame.pack_forget()
+            print("切换到模板2，隐藏检测单位和检测标准参数")
     
     def create_surface_defect_frame(self, parent_frame):
         """创建表面结果通知单台账模块的内容"""
@@ -899,22 +942,31 @@ class NDTResultGUI:
         project_name = self.project_entry.get()
         client_name = self.client_entry.get()
         inspection_method = self.method_entry.get()
-        
+        selected_template = self.template_var.get()
+
+        # 获取模板1专用参数
+        inspection_unit = self.inspection_unit_entry.get() if selected_template == "模板1" else None
+        inspection_standard = self.inspection_standard_entry.get() if selected_template == "模板1" else None
+
         # 验证输入
         if not excel_path or not os.path.exists(excel_path):
             self.show_log("错误: 请选择有效的Excel文件")
             return
-            
+
         if not word_path or not os.path.exists(word_path):
             self.show_log("错误: 请选择有效的Word模板文件")
             return
-        
+
         if not output_path:
-            # 使用默认输出路径
-            output_path = os.path.join("生成器", "输出报告")
+            # 根据模板类型使用不同的默认输出路径
+            if selected_template == "模板1":
+                output_path = os.path.join("生成器", "输出报告", "2_RT结果通知单台账_Mode1")
+            else:
+                output_path = os.path.join("生成器", "输出报告", "2_RT结果通知单台账_Mode2")
+
             self.output_path.set(output_path)
             self.show_log(f"未指定输出文件夹，使用默认路径: {output_path}")
-            
+
             # 确保目录存在
             if not os.path.exists(output_path):
                 try:
@@ -923,28 +975,38 @@ class NDTResultGUI:
                 except Exception as e:
                     self.show_log(f"创建目录失败: {e}")
                     return
-        
+
         # 禁用提交按钮，避免重复提交
         self.submit_button.configure(state='disabled')
         self.status_var.set("状态: 处理中...")
-        
+
         # 显示开始信息
         self.show_log(f"开始处理数据: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.show_log(f"选择模板: {selected_template}")
         self.show_log(f"Excel文件: {excel_path}")
         self.show_log(f"Word模板: {word_path}")
         self.show_log(f"输出路径: {output_path}")
         self.show_log(f"工程名称: {project_name}")
         self.show_log(f"委托单位: {client_name}")
         self.show_log(f"检测方法: {inspection_method}")
+        if selected_template == "模板1":
+            self.show_log(f"检测单位: {inspection_unit}")
+            self.show_log(f"检测标准: {inspection_standard}")
         self.show_log("="*50)
-        
+
         # 在后台线程中处理数据
-        threading.Thread(target=self.run_process, args=(
-            excel_path, word_path, output_path, project_name, client_name, inspection_method
-        )).start()
+        if selected_template == "模板1":
+            threading.Thread(target=self.run_process_mode1, args=(
+                excel_path, word_path, output_path, project_name, client_name,
+                inspection_unit, inspection_standard, inspection_method
+            )).start()
+        else:
+            threading.Thread(target=self.run_process, args=(
+                excel_path, word_path, output_path, project_name, client_name, inspection_method
+            )).start()
         
     def run_process(self, excel_path, word_path, output_path, project_name, client_name, inspection_method):
-        """在后台线程中运行数据处理"""
+        """在后台线程中运行数据处理 - 模板2"""
         try:
             # 重定向标准输出到日志区
             with redirect_stdout(self.redirect):
@@ -952,10 +1014,29 @@ class NDTResultGUI:
                 success = NDT_result.process_excel_to_word(
                     excel_path, word_path, output_path, project_name, client_name, inspection_method
                 )
-            
+
             # 在主线程中更新UI
             self.root.after(0, self.process_completed, success)
-            
+
+        except Exception as e:
+            # 在主线程中显示错误
+            self.root.after(0, self.show_error, str(e))
+
+    def run_process_mode1(self, excel_path, word_path, output_path, project_name, client_name,
+                         inspection_unit, inspection_standard, inspection_method):
+        """在后台线程中运行数据处理 - 模板1"""
+        try:
+            # 重定向标准输出到日志区
+            with redirect_stdout(self.redirect):
+                # 调用NDT_result_mode1模块的处理函数
+                success = NDT_result_mode1.process_excel_to_word(
+                    excel_path, word_path, output_path, project_name, client_name,
+                    inspection_unit, inspection_standard, inspection_method
+                )
+
+            # 在主线程中更新UI
+            self.root.after(0, self.process_completed, success)
+
         except Exception as e:
             # 在主线程中显示错误
             self.root.after(0, self.show_error, str(e))

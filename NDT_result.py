@@ -50,7 +50,15 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
         return False
     
     # 创建输出目录
-    output_dir = os.path.join("生成器", "输出报告", "2_RT结果通知单台账_Mode")
+    if output_path:
+        # 使用GUI传递的输出路径
+        output_dir = output_path
+        print(f"使用GUI指定的输出路径: {output_dir}")
+    else:
+        # 使用默认输出路径
+        output_dir = os.path.join("生成器", "输出报告", "2_RT结果通知单台账", "2_RT结果通知单台账_Mode2")
+        print(f"使用默认输出路径: {output_dir}")
+
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         print(f"创建输出目录: {output_dir}")
@@ -617,8 +625,8 @@ def main():
     parser = argparse.ArgumentParser(description='将Excel数据填入Word文档')
     parser.add_argument('-e', '--excel', default="生成器/Excel/2_生成器结果.xlsx", 
                         help='Excel表格路径 (默认: 生成器/Excel/2_生成器结果.xlsx)')
-    parser.add_argument('-w', '--word', default="生成器/wod/2_新-聚乙烯结果_改.docx", 
-                        help='Word模板文档路径 (默认: 生成器/wod/2_新-聚乙烯结果_改.docx)')
+    parser.add_argument('-w', '--word', default="生成器/wod/2_RT结果通知台账_Mode2.docx", 
+                        help='Word模板文档路径 (默认: 生成器/wod/2_RT结果通知台账_Mode2.docx)')
     parser.add_argument('-o', '--output', 
                         help='输出目录 (可选，默认为"生成器/输出报告"目录)')
     parser.add_argument('-p', '--project', 
