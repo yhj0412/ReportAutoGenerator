@@ -259,7 +259,11 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                     if not unit_values.empty:
                         unit_name = str(unit_values.iloc[0])
                         print(f"单元名称值: {unit_name}")
-                
+
+                # 获取委托单编号值（同一个委托单编号只需选一个）
+                order_number_value = order_number  # 直接使用当前处理的委托单编号
+                print(f"委托单编号值: {order_number_value}")
+
                 # 在文档中替换这些值
                 for paragraph in doc.paragraphs:
                     if "合格级别值" in paragraph.text and qualification_level:
@@ -269,6 +273,10 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                     if "单元名称值" in paragraph.text and unit_name:
                         paragraph.text = paragraph.text.replace("单元名称值", unit_name)
                         print(f"已将'单元名称值'替换为'{unit_name}'")
+
+                    if "委托单编号值" in paragraph.text and order_number_value:
+                        paragraph.text = paragraph.text.replace("委托单编号值", order_number_value)
+                        print(f"已将'委托单编号值'替换为'{order_number_value}'")
 
                     if "完成日期值" in paragraph.text:
                         completion_date_str = f"{year}年{month}月{day}日"
@@ -286,6 +294,10 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                             if "单元名称值" in cell.text and unit_name:
                                 cell.text = cell.text.replace("单元名称值", unit_name)
                                 print(f"已将表格中的'单元名称值'替换为'{unit_name}'")
+
+                            if "委托单编号值" in cell.text and order_number_value:
+                                cell.text = cell.text.replace("委托单编号值", order_number_value)
+                                print(f"已将表格中的'委托单编号值'替换为'{order_number_value}'")
 
                             if "完成日期值" in cell.text:
                                 completion_date_str = f"{year}年{month}月{day}日"
