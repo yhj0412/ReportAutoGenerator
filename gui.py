@@ -194,64 +194,106 @@ class NDTResultGUI:
     def create_ray_detection_frame(self, parent_frame):
         """创建射线检测委托台账模块的内容"""
         parent_frame.pack(fill=tk.BOTH, expand=True)
-        
+
         # 模块标题
         header_frame = ttk.Frame(parent_frame)
         header_frame.pack(fill=tk.X, pady=(0, 15))
-        header_label = ttk.Label(header_frame, text="射线检测委托台账", 
+        header_label = ttk.Label(header_frame, text="射线检测委托台账",
                                style="ContentHeader.TLabel")
         header_label.pack(side=tk.LEFT, padx=5)
-        
+
         # 参数设置区域
         params_frame = ttk.LabelFrame(parent_frame, text="参数设置")
         params_frame.pack(fill=tk.X, pady=(0, 10), padx=5)
-        
+
         # 创建参数行
         params_grid = ttk.Frame(params_frame)
         params_grid.pack(fill=tk.X, padx=15, pady=15)
-        
-        # 第一行参数
-        row1_frame = ttk.Frame(params_grid)
-        row1_frame.pack(fill=tk.X, pady=5)
-        
-        # 工程名称
-        project_label = ttk.Label(row1_frame, text="工程名称")
-        project_label.pack(side=tk.LEFT, padx=(0, 5))
-        self.ray_project_entry = ttk.Entry(row1_frame, width=20)
-        self.ray_project_entry.pack(side=tk.LEFT, padx=(0, 20))
-        
-        # 检测类别号
-        category_label = ttk.Label(row1_frame, text="检测类别号")
-        category_label.pack(side=tk.LEFT, padx=(0, 5))
-        self.ray_category_entry = ttk.Entry(row1_frame, width=20)
-        self.ray_category_entry.pack(side=tk.LEFT)
-        
+
+        # 第一行参数 - 模板选择
+        ray_row0_frame = ttk.Frame(params_grid)
+        ray_row0_frame.pack(fill=tk.X, pady=5)
+
+        # 模板选择
+        ray_template_label = ttk.Label(ray_row0_frame, text="模板")
+        ray_template_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.ray_template_var = tk.StringVar()
+        self.ray_template_combobox = ttk.Combobox(ray_row0_frame, textvariable=self.ray_template_var,
+                                                values=["模板1", "模板2"], state="readonly", width=15)
+        self.ray_template_combobox.set("模板2")  # 默认选择模板2
+        self.ray_template_combobox.pack(side=tk.LEFT, padx=(0, 20))
+        self.ray_template_combobox.bind("<<ComboboxSelected>>", self.on_ray_template_change)
+
         # 第二行参数
-        row2_frame = ttk.Frame(params_grid)
-        row2_frame.pack(fill=tk.X, pady=5)
-        
-        # 检测标准
-        standard_label = ttk.Label(row2_frame, text="检测标准")
-        standard_label.pack(side=tk.LEFT, padx=(0, 5))
-        self.ray_standard_entry = ttk.Entry(row2_frame, width=20)
-        self.ray_standard_entry.pack(side=tk.LEFT, padx=(0, 20))
-        
+        ray_row1_frame = ttk.Frame(params_grid)
+        ray_row1_frame.pack(fill=tk.X, pady=5)
+
+        # 工程名称
+        project_label = ttk.Label(ray_row1_frame, text="工程名称")
+        project_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.ray_project_entry = ttk.Entry(ray_row1_frame, width=40)
+        self.ray_project_entry.pack(side=tk.LEFT, padx=(0, 5))
+
+        # 第三行参数
+        ray_row2_frame = ttk.Frame(params_grid)
+        ray_row2_frame.pack(fill=tk.X, pady=5)
+
+        # 检测类别号 (模板2专用)
+        self.ray_category_label = ttk.Label(ray_row2_frame, text="检测类别号")
+        self.ray_category_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.ray_category_entry = ttk.Entry(ray_row2_frame, width=20)
+        self.ray_category_entry.pack(side=tk.LEFT, padx=(0, 30))
+
+        # 委托单位 (模板1专用，初始隐藏)
+        self.ray_client_label = ttk.Label(ray_row2_frame, text="委托单位")
+        self.ray_client_entry = ttk.Entry(ray_row2_frame, width=20)
+
         # 检测方法
-        method_label = ttk.Label(row2_frame, text="检测方法")
+        method_label = ttk.Label(ray_row2_frame, text="检测方法")
         method_label.pack(side=tk.LEFT, padx=(0, 5))
-        self.ray_method_entry = ttk.Entry(row2_frame, width=20)
+        self.ray_method_entry = ttk.Entry(ray_row2_frame, width=20)
         self.ray_method_entry.insert(0, "RT")  # 默认值
         self.ray_method_entry.pack(side=tk.LEFT)
-        
-        # 第三行参数
-        row3_frame = ttk.Frame(params_grid)
-        row3_frame.pack(fill=tk.X, pady=5)
-        
+
+        # 第四行参数
+        ray_row3_frame = ttk.Frame(params_grid)
+        ray_row3_frame.pack(fill=tk.X, pady=5)
+
+        # 检测标准
+        standard_label = ttk.Label(ray_row3_frame, text="检测标准")
+        standard_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.ray_standard_entry = ttk.Entry(ray_row3_frame, width=20)
+        self.ray_standard_entry.pack(side=tk.LEFT, padx=(0, 30))
+
         # 坡口形式
-        groove_label = ttk.Label(row3_frame, text="坡口形式")
+        groove_label = ttk.Label(ray_row3_frame, text="坡口形式")
         groove_label.pack(side=tk.LEFT, padx=(0, 5))
-        self.ray_groove_entry = ttk.Entry(row3_frame, width=20)
+        self.ray_groove_entry = ttk.Entry(ray_row3_frame, width=20)
         self.ray_groove_entry.pack(side=tk.LEFT)
+
+        # 第五行参数 - 模板1专用参数（初始隐藏）
+        self.ray_row4_frame = ttk.Frame(params_grid)
+
+        # 验收规范
+        self.ray_acceptance_label = ttk.Label(self.ray_row4_frame, text="验收规范")
+        self.ray_acceptance_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.ray_acceptance_entry = ttk.Entry(self.ray_row4_frame, width=20)
+        self.ray_acceptance_entry.pack(side=tk.LEFT, padx=(0, 30))
+
+        # 检测技术等级
+        self.ray_tech_level_label = ttk.Label(self.ray_row4_frame, text="检测技术等级")
+        self.ray_tech_level_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.ray_tech_level_entry = ttk.Entry(self.ray_row4_frame, width=20)
+        self.ray_tech_level_entry.pack(side=tk.LEFT)
+
+        # 第六行参数 - 模板1专用参数（初始隐藏）
+        self.ray_row5_frame = ttk.Frame(params_grid)
+
+        # 外观检查
+        self.ray_appearance_label = ttk.Label(self.ray_row5_frame, text="外观检查")
+        self.ray_appearance_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.ray_appearance_entry = ttk.Entry(self.ray_row5_frame, width=20)
+        self.ray_appearance_entry.pack(side=tk.LEFT)
         
         # 文件选择区域
         files_frame = ttk.LabelFrame(parent_frame, text="文件选择")
@@ -325,7 +367,42 @@ class NDTResultGUI:
         
         # 设置日志重定向
         self.ray_redirect = RedirectText(self.ray_log_text)
-    
+
+    def on_ray_template_change(self, event=None):
+        """射线检测委托台账模板选择变化时的回调函数"""
+        selected_template = self.ray_template_var.get()
+
+        if selected_template == "模板1":
+            # 显示模板1专用参数
+            self.ray_row4_frame.pack(fill=tk.X, pady=5)
+            self.ray_row5_frame.pack(fill=tk.X, pady=5)
+
+            # 隐藏检测类别号，显示委托单位
+            self.ray_category_label.pack_forget()
+            self.ray_category_entry.pack_forget()
+            self.ray_client_label.pack(side=tk.LEFT, padx=(0, 5))
+            self.ray_client_entry.pack(side=tk.LEFT, padx=(0, 30))
+
+            # 更新Word模板默认路径
+            self.ray_word_path.set("生成器/wod/1_射线检测委托台账_Mode1.docx")
+
+            print("切换到模板1，显示8个参数：工程名称、委托单位、检测标准、验收规范、检测方法、检测技术等级、外观检查、坡口形式")
+        else:
+            # 隐藏模板1专用参数
+            self.ray_row4_frame.pack_forget()
+            self.ray_row5_frame.pack_forget()
+
+            # 显示检测类别号，隐藏委托单位
+            self.ray_client_label.pack_forget()
+            self.ray_client_entry.pack_forget()
+            self.ray_category_label.pack(side=tk.LEFT, padx=(0, 5))
+            self.ray_category_entry.pack(side=tk.LEFT, padx=(0, 30))
+
+            # 更新Word模板默认路径
+            self.ray_word_path.set("生成器/wod/1_射线检测委托台账_Mode2.docx")
+
+            print("切换到模板2，显示5个参数：工程名称、检测类别号、检测标准、检测方法、坡口形式")
+
     def create_rt_result_frame(self, parent_frame):
         """创建RT结果通知单台账模块的内容"""
         parent_frame.pack(fill=tk.BOTH, expand=True)
@@ -1122,27 +1199,29 @@ class NDTResultGUI:
         word_path = self.ray_word_path.get()
         output_path = self.ray_output_path.get()
         project_name = self.ray_project_entry.get()
-        category = self.ray_category_entry.get()
-        standard = self.ray_standard_entry.get()
         method = self.ray_method_entry.get()
+        standard = self.ray_standard_entry.get()
         groove = self.ray_groove_entry.get()
-        
+
+        # 根据模板选择获取不同的参数
+        selected_template = self.ray_template_var.get()
+
         # 验证输入
         if not excel_path or not os.path.exists(excel_path):
             self.show_ray_log("错误: 请选择有效的Excel文件")
             return
-        
+
         if not word_path or not os.path.exists(word_path):
             self.show_ray_log("错误: 请选择有效的Word模板文件")
             return
-        
+
         if not output_path:
             # 使用默认输出路径
             template_name = os.path.splitext(os.path.basename(word_path))[0]
             output_path = os.path.join("生成器", "输出报告", template_name)
             self.ray_output_path.set(output_path)
             self.show_ray_log(f"未指定输出文件夹，使用默认路径: {output_path}")
-            
+
             # 确保目录存在
             if not os.path.exists(output_path):
                 try:
@@ -1151,48 +1230,95 @@ class NDTResultGUI:
                 except Exception as e:
                     self.show_ray_log(f"创建目录失败: {e}")
                     return
-        
+
         # 禁用提交按钮，避免重复提交
         self.ray_submit_button.configure(state='disabled')
         self.status_var.set("状态: 处理中...")
-        
+
         # 显示开始信息
         self.show_ray_log(f"开始处理数据: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         self.show_ray_log(f"Excel文件: {excel_path}")
         self.show_ray_log(f"Word模板: {word_path}")
         self.show_ray_log(f"输出路径: {output_path}")
+        self.show_ray_log(f"选择模板: {selected_template}")
         self.show_ray_log(f"工程名称: {project_name}")
-        self.show_ray_log(f"检测类别号: {category}")
         self.show_ray_log(f"检测标准: {standard}")
         self.show_ray_log(f"检测方法: {method}")
         self.show_ray_log(f"坡口形式: {groove}")
-        self.show_ray_log("="*50)
-        
-        # 在后台线程中处理数据
-        threading.Thread(target=self.run_ray_process, args=(
-            excel_path, word_path, output_path, project_name, category, 
-            standard, method, groove
-        )).start()
 
-    def run_ray_process(self, excel_path, word_path, output_path, project_name, category, 
-                      standard, method, groove):
-        """在后台线程中运行射线检测委托台账处理"""
+        if selected_template == "模板1":
+            # 模板1的8个参数
+            client_name = self.ray_client_entry.get()
+            acceptance_spec = self.ray_acceptance_entry.get()
+            tech_level = self.ray_tech_level_entry.get()
+            appearance_check = self.ray_appearance_entry.get()
+
+            self.show_ray_log(f"委托单位: {client_name}")
+            self.show_ray_log(f"验收规范: {acceptance_spec}")
+            self.show_ray_log(f"检测技术等级: {tech_level}")
+            self.show_ray_log(f"外观检查: {appearance_check}")
+            self.show_ray_log("="*50)
+
+            # 在后台线程中处理数据
+            threading.Thread(target=self.run_ray_mode1_process, args=(
+                excel_path, word_path, output_path, project_name, client_name,
+                standard, acceptance_spec, method, tech_level, appearance_check, groove
+            )).start()
+        else:
+            # 模板2的5个参数
+            category = self.ray_category_entry.get()
+
+            self.show_ray_log(f"检测类别号: {category}")
+            self.show_ray_log("="*50)
+
+            # 在后台线程中处理数据
+            threading.Thread(target=self.run_ray_mode2_process, args=(
+                excel_path, word_path, output_path, project_name, category,
+                standard, method, groove
+            )).start()
+
+    def run_ray_mode1_process(self, excel_path, word_path, output_path, project_name, client_name,
+                            standard, acceptance_spec, method, tech_level, appearance_check, groove):
+        """在后台线程中运行射线检测委托台账模板1处理"""
+        try:
+            # 导入Ray_Detection_mode1模块
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            import Ray_Detection_mode1
+
+            # 重定向标准输出到日志区
+            with redirect_stdout(self.ray_redirect):
+                # 调用Ray_Detection_mode1模块的处理函数
+                success = Ray_Detection_mode1.process_excel_to_word(
+                    excel_path, word_path, output_path, project_name, client_name,
+                    standard, acceptance_spec, method, tech_level, appearance_check, groove
+                )
+
+            # 在主线程中更新UI
+            self.root.after(0, self.process_ray_completed, success)
+
+        except Exception as e:
+            # 在主线程中显示错误
+            self.root.after(0, self.show_ray_error, str(e))
+
+    def run_ray_mode2_process(self, excel_path, word_path, output_path, project_name, category,
+                            standard, method, groove):
+        """在后台线程中运行射线检测委托台账模板2处理"""
         try:
             # 导入Ray_Detection模块
             sys.path.append(os.path.dirname(os.path.abspath(__file__)))
             import Ray_Detection
-            
+
             # 重定向标准输出到日志区
             with redirect_stdout(self.ray_redirect):
                 # 调用Ray_Detection模块的处理函数
                 success = Ray_Detection.process_excel_to_word(
-                    excel_path, word_path, output_path, project_name, category, 
+                    excel_path, word_path, output_path, project_name, category,
                     standard, method, groove
                 )
-            
+
             # 在主线程中更新UI
             self.root.after(0, self.process_ray_completed, success)
-            
+
         except Exception as e:
             # 在主线程中显示错误
             self.root.after(0, self.show_ray_error, str(e))
