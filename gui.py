@@ -550,7 +550,7 @@ class NDTResultGUI:
         self.redirect = RedirectText(self.log_text)
 
     def on_template_change(self, event=None):
-        """模板选择变化时的回调函数"""
+        """RT结果通知单台账模板选择变化时的回调函数"""
         selected_template = self.template_var.get()
 
         if selected_template == "模板1":
@@ -561,52 +561,91 @@ class NDTResultGUI:
             # 隐藏模板1专用参数
             self.row3_frame.pack_forget()
             print("切换到模板2，隐藏检测单位和检测标准参数")
+
+    def on_surface_template_change(self, event=None):
+        """表面结果通知单台账模板选择变化时的回调函数"""
+        selected_template = self.surface_template_var.get()
+
+        if selected_template == "模板1":
+            # 显示模板1专用参数
+            self.surface_row3_frame.pack(fill=tk.X, pady=5)
+            # 更新Word模板默认路径
+            self.surface_word_path.set("生成器/wod/3_表面结果通知单台账_Mode1.docx")
+            print("切换到模板1，显示检测单位和检测标准参数")
+        else:
+            # 隐藏模板1专用参数
+            self.surface_row3_frame.pack_forget()
+            # 更新Word模板默认路径
+            self.surface_word_path.set("生成器/wod/3_表面结果通知单台账_Mode2.docx")
+            print("切换到模板2，隐藏检测单位和检测标准参数")
     
     def create_surface_defect_frame(self, parent_frame):
         """创建表面结果通知单台账模块的内容"""
         parent_frame.pack(fill=tk.BOTH, expand=True)
-        
+
         # 模块标题
         header_frame = ttk.Frame(parent_frame)
         header_frame.pack(fill=tk.X, pady=(0, 15))
-        header_label = ttk.Label(header_frame, text="表面结果通知单台账", 
+        header_label = ttk.Label(header_frame, text="表面结果通知单台账",
                                 style="ContentHeader.TLabel")
         header_label.pack(side=tk.LEFT, padx=5)
-        
+
         # 参数设置区域
         params_frame = ttk.LabelFrame(parent_frame, text="参数设置")
         params_frame.pack(fill=tk.X, pady=(0, 10), padx=5)
-        
+
         # 创建参数行
         params_grid = ttk.Frame(params_frame)
         params_grid.pack(fill=tk.X, padx=15, pady=15)
-        
-        # 第一行参数
-        row1_frame = ttk.Frame(params_grid)
-        row1_frame.pack(fill=tk.X, pady=5)
-        
-        # 工程名称
-        project_label = ttk.Label(row1_frame, text="工程名称")
-        project_label.pack(side=tk.LEFT, padx=(0, 5))
-        self.surface_project_entry = ttk.Entry(row1_frame, width=40)
-        self.surface_project_entry.pack(side=tk.LEFT)
-        
+
+        # 第一行参数 - 模板选择
+        surface_row0_frame = ttk.Frame(params_grid)
+        surface_row0_frame.pack(fill=tk.X, pady=5)
+
+        # 模板选择
+        surface_template_label = ttk.Label(surface_row0_frame, text="模板")
+        surface_template_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.surface_template_var = tk.StringVar()
+        self.surface_template_combobox = ttk.Combobox(surface_row0_frame, textvariable=self.surface_template_var,
+                                                    values=["模板1", "模板2"], state="readonly", width=15)
+        self.surface_template_combobox.set("模板2")  # 默认选择模板2
+        self.surface_template_combobox.pack(side=tk.LEFT, padx=(0, 20))
+        self.surface_template_combobox.bind("<<ComboboxSelected>>", self.on_surface_template_change)
+
         # 第二行参数
-        row2_frame = ttk.Frame(params_grid)
-        row2_frame.pack(fill=tk.X, pady=5)
-        
+        surface_row1_frame = ttk.Frame(params_grid)
+        surface_row1_frame.pack(fill=tk.X, pady=5)
+
+        # 工程名称
+        project_label = ttk.Label(surface_row1_frame, text="工程名称")
+        project_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.surface_project_entry = ttk.Entry(surface_row1_frame, width=40)
+        self.surface_project_entry.pack(side=tk.LEFT)
+
+        # 第三行参数
+        surface_row2_frame = ttk.Frame(params_grid)
+        surface_row2_frame.pack(fill=tk.X, pady=5)
+
         # 委托单位
-        client_label = ttk.Label(row2_frame, text="委托单位")
+        client_label = ttk.Label(surface_row2_frame, text="委托单位")
         client_label.pack(side=tk.LEFT, padx=(0, 5))
-        self.surface_client_entry = ttk.Entry(row2_frame, width=20)
-        self.surface_client_entry.pack(side=tk.LEFT, padx=(0, 30))
-        
-        # 检测方法
-        method_label = ttk.Label(row2_frame, text="检测方法")
-        method_label.pack(side=tk.LEFT, padx=(0, 5))
-        self.surface_method_entry = ttk.Entry(row2_frame, width=20)
-        self.surface_method_entry.insert(0, "表面检测")  # 默认值
-        self.surface_method_entry.pack(side=tk.LEFT)
+        self.surface_client_entry = ttk.Entry(surface_row2_frame, width=40)
+        self.surface_client_entry.pack(side=tk.LEFT)
+
+        # 第四行参数 - 模板1专用参数（初始隐藏）
+        self.surface_row3_frame = ttk.Frame(params_grid)
+
+        # 检测单位
+        surface_inspection_unit_label = ttk.Label(self.surface_row3_frame, text="检测单位")
+        surface_inspection_unit_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.surface_inspection_unit_entry = ttk.Entry(self.surface_row3_frame, width=20)
+        self.surface_inspection_unit_entry.pack(side=tk.LEFT, padx=(0, 30))
+
+        # 检测标准
+        surface_inspection_standard_label = ttk.Label(self.surface_row3_frame, text="检测标准")
+        surface_inspection_standard_label.pack(side=tk.LEFT, padx=(0, 5))
+        self.surface_inspection_standard_entry = ttk.Entry(self.surface_row3_frame, width=20)
+        self.surface_inspection_standard_entry.pack(side=tk.LEFT)
         
         # 文件选择区域
         files_frame = ttk.LabelFrame(parent_frame, text="文件选择")
@@ -1373,23 +1412,31 @@ class NDTResultGUI:
         output_path = self.surface_output_path.get()
         project_name = self.surface_project_entry.get()
         client_name = self.surface_client_entry.get()
-        inspection_method = self.surface_method_entry.get()
-        
+        selected_template = self.surface_template_var.get()
+
+        # 获取模板1专用参数
+        inspection_unit = self.surface_inspection_unit_entry.get() if selected_template == "模板1" else None
+        inspection_standard = self.surface_inspection_standard_entry.get() if selected_template == "模板1" else None
+
         # 验证输入
         if not excel_path or not os.path.exists(excel_path):
             self.show_surface_log("错误: 请选择有效的Excel文件")
             return
-        
+
         if not word_path or not os.path.exists(word_path):
             self.show_surface_log("错误: 请选择有效的Word模板文件")
             return
-        
+
         if not output_path:
-            # 使用默认输出路径
-            output_path = os.path.join("生成器", "输出报告", "3_表面结果通知单台账_Mode2")
+            # 根据模板类型使用不同的默认输出路径
+            if selected_template == "模板1":
+                output_path = os.path.join("生成器", "输出报告", "3_表面结果通知单台账", "3_表面结果通知单台账_Mode1")
+            else:
+                output_path = os.path.join("生成器", "输出报告", "3_表面结果通知单台账", "3_表面结果通知单台账_Mode2")
+
             self.surface_output_path.set(output_path)
             self.show_surface_log(f"未指定输出文件夹，使用默认路径: {output_path}")
-            
+
             # 确保目录存在
             if not os.path.exists(output_path):
                 try:
@@ -1398,43 +1445,58 @@ class NDTResultGUI:
                 except Exception as e:
                     self.show_surface_log(f"创建目录失败: {e}")
                     return
-        
+
         # 禁用提交按钮，避免重复提交
         self.surface_submit_button.configure(state='disabled')
         self.status_var.set("状态: 处理中...")
-        
+
         # 显示开始信息
         self.show_surface_log(f"开始处理数据: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.show_surface_log(f"选择模板: {selected_template}")
         self.show_surface_log(f"Excel文件: {excel_path}")
         self.show_surface_log(f"Word模板: {word_path}")
         self.show_surface_log(f"输出路径: {output_path}")
         self.show_surface_log(f"工程名称: {project_name}")
         self.show_surface_log(f"委托单位: {client_name}")
-        self.show_surface_log(f"检测方法: {inspection_method}")
+        if selected_template == "模板1":
+            self.show_surface_log(f"检测单位: {inspection_unit}")
+            self.show_surface_log(f"检测标准: {inspection_standard}")
         self.show_surface_log("="*50)
-        
+
         # 在后台线程中处理数据
         threading.Thread(target=self.run_surface_process, args=(
-            excel_path, word_path, output_path, project_name, client_name, inspection_method
+            excel_path, word_path, output_path, project_name, client_name,
+            selected_template, inspection_unit, inspection_standard
         )).start()
 
-    def run_surface_process(self, excel_path, word_path, output_path, project_name, client_name, inspection_method):
+    def run_surface_process(self, excel_path, word_path, output_path, project_name, client_name,
+                           selected_template, inspection_unit, inspection_standard):
         """在后台线程中运行表面结果通知单台账处理"""
         try:
-            # 导入Surface_Defect模块
+            # 根据选择的模板导入不同的模块
             sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-            import Surface_Defect
-            
+
             # 重定向标准输出到日志区
             with redirect_stdout(self.surface_redirect):
-                # 调用Surface_Defect模块的处理函数
-                success = Surface_Defect.process_excel_to_word(
-                    excel_path, word_path, output_path, project_name, client_name, inspection_method
-                )
-            
+                if selected_template == "模板1":
+                    # 导入Surface_Defect_mode1模块
+                    import Surface_Defect_mode1
+                    # 调用Surface_Defect_mode1模块的处理函数
+                    success = Surface_Defect_mode1.process_excel_to_word(
+                        excel_path, word_path, output_path, project_name, client_name,
+                        inspection_unit, inspection_standard
+                    )
+                else:
+                    # 导入Surface_Defect模块
+                    import Surface_Defect
+                    # 调用Surface_Defect模块的处理函数
+                    success = Surface_Defect.process_excel_to_word(
+                        excel_path, word_path, output_path, project_name, client_name
+                    )
+
             # 在主线程中更新UI
             self.root.after(0, self.process_surface_completed, success)
-            
+
         except Exception as e:
             # 在主线程中显示错误
             self.root.after(0, self.show_surface_error, str(e))

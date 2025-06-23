@@ -11,6 +11,51 @@ def find_column_with_keyword(df, keyword):
     matching_cols = [col for col in df.columns if keyword.lower() in col.lower()]
     return matching_cols[0] if matching_cols else None
 
+def get_detection_level_by_method(detection_method):
+    """根据检测方法获取对应的检测级别值
+
+    Args:
+        detection_method: 检测方法字符串
+
+    Returns:
+        str: 对应的检测级别值
+    """
+    if not detection_method:
+        return ""
+
+    # 转换为字符串并去除空格，转为大写进行匹配
+    method = str(detection_method).strip().upper()
+
+    # 检测方法与检测级别值的映射关系
+    method_mapping = {
+        # 硬度检测或YD
+        '硬度检测': '力学   级',
+        'YD': '力学   级',
+        # 光谱检测或PMIN
+        '光谱检测': '光谱分析  级',
+        'PMIN': '光谱分析  级',
+        # 其他检测方法
+        'UT': 'UT  级',
+        'PT': 'PT  级',
+        'MT': 'MT  级',
+        'RT': 'RT  级',
+        'TOFD': 'TOFD  级',
+        'PA': 'PA  级'
+    }
+
+    # 精确匹配
+    if method in method_mapping:
+        return method_mapping[method]
+
+    # 模糊匹配 - 检查是否包含关键字
+    for key, value in method_mapping.items():
+        if key in method:
+            return value
+
+    # 如果没有匹配到，返回空字符串
+    print(f"警告: 未找到检测方法 '{detection_method}' 对应的检测级别值")
+    return ""
+
 def get_output_filename(word_template_path, order_number):
     """根据Word模板路径和委托单编号生成输出文件名
     
@@ -50,7 +95,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
         return False
     
     # 创建输出目录 - 修改为指定的路径
-    output_dir = os.path.join("生成器", "输出报告", "3_表面结果通知单台账_Mode2")
+    output_dir = os.path.join("生成器", "输出报告", "3_表面结果通知单台账","3_表面结果通知单台账_Mode2")
     if not os.path.exists(output_dir):
         try:
             os.makedirs(output_dir)
@@ -59,29 +104,36 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
             print(f"错误: 无法创建输出目录: {e}")
             return False
     
-    # 读取Excel数据
+    # 读取Excel数据 - 指定读取sheet3"荣信聚乙烯PT"
     print(f"正在读取Excel文件: {excel_path}")
     try:
-        df = pd.read_excel(excel_path)
-        print(f"成功读取Excel文件，共有{len(df)}行数据")
+        # 读取指定的工作表sheet3"荣信聚乙烯PT"
+        df = pd.read_excel(excel_path, sheet_name="荣信聚乙烯PT")
+        print(f"成功读取Excel文件sheet3'荣信聚乙烯PT'，共有{len(df)}行数据")
     except Exception as e:
-        print(f"错误: 无法读取Excel文件: {e}")
-        return False
+        print(f"错误: 无法读取Excel文件sheet3'荣信聚乙烯PT': {e}")
+        # 如果指定工作表不存在，尝试读取第一个工作表
+        try:
+            df = pd.read_excel(excel_path)
+            print(f"警告: 未找到sheet3'荣信聚乙烯PT'，使用默认工作表，共有{len(df)}行数据")
+        except Exception as e2:
+            print(f"错误: 无法读取Excel文件: {e2}")
+            return False
     
     # 打印所有列名，帮助调试
     print(f"Excel表格列名: {list(df.columns)}")
     
-    # 定义需要查找的列关键字
+    # 定义需要查找的列关键字 - 根据新需求更新
     column_keywords = {
-        '完成日期': '完成日期',
-        '委托单编号': '委托单编号',
-        '检件编号': '检件编号',
-        '焊口编号': '焊口编号',
-        '焊工号': '焊工号',
-        '返修补片': '返修补片',
-        '实际不合格': '实际不合格',
-        '备注': '备注',
-        '单元名称': '单元名称'
+        '完成日期': '完成日期',           # B列
+        '委托单编号': '委托单编号',       # C列
+        '检件编号': '检件编号',           # D列
+        '焊口编号': '焊口编号',           # E列
+        '焊工号': '焊工号',               # F列
+        '焊口情况': '焊口情况',           # K列 - 对应检测结果
+        '返修张处数': '返修张/处数',      # L列 - 返修张/处数
+        '检测方法': '检测方法',           # N列
+        '单元名称': '单元名称'            # O列
     }
     
     # 查找每个关键字对应的实际列名
@@ -98,17 +150,17 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
     
     if missing_columns:
         print(f"警告: 未找到以下列: {', '.join(missing_columns)}")
-        # 尝试使用列位置
+        # 尝试使用列位置 - 根据新需求更新
         possible_columns = {
-            '完成日期': 'B', 
-            '委托单编号': 'C', 
-            '检件编号': 'D', 
-            '焊口编号': 'E', 
-            '焊工号': 'F', 
-            '返修补片': 'K', 
-            '实际不合格': 'W', 
-            '备注': 'O', 
-            '单元名称': 'Q'
+            '完成日期': 'B',         # B列
+            '委托单编号': 'C',       # C列
+            '检件编号': 'D',         # D列
+            '焊口编号': 'E',         # E列
+            '焊工号': 'F',           # F列
+            '焊口情况': 'K',         # K列
+            '返修张处数': 'L',       # L列
+            '检测方法': 'N',         # N列
+            '单元名称': 'O'          # O列
         }
         
         for key in missing_columns:
@@ -179,21 +231,34 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                 print("警告: 未找到完成日期列")
                 year, month, day = datetime.now().year, datetime.now().month, datetime.now().day
             
-            # 获取相关数据
+            # 获取相关数据 - 根据新需求更新
             inspection_numbers = order_df[column_mapping.get('检件编号')].dropna().tolist() if '检件编号' in column_mapping else []
             weld_numbers = order_df[column_mapping.get('焊口编号')].dropna().tolist() if '焊口编号' in column_mapping else []
             welder_numbers = order_df[column_mapping.get('焊工号')].dropna().tolist() if '焊工号' in column_mapping else []
-            repair_results = order_df[column_mapping.get('返修补片')].tolist() if '返修补片' in column_mapping else []
-            failure_counts = order_df[column_mapping.get('实际不合格')].tolist() if '实际不合格' in column_mapping else []
-            notes = order_df[column_mapping.get('备注')].tolist() if '备注' in column_mapping else []
-            
-            # 获取单元名称（第一个非空值）
+            weld_conditions = order_df[column_mapping.get('焊口情况')].tolist() if '焊口情况' in column_mapping else []  # K列焊口情况
+            repair_counts = order_df[column_mapping.get('返修张处数')].tolist() if '返修张处数' in column_mapping else []  # L列返修张/处数
+
+            # 获取单元名称（第一个非空值）- O列
             unit_name = ""
             if '单元名称' in column_mapping:
                 unit_names = order_df[column_mapping['单元名称']].dropna().tolist()
                 if unit_names:
                     unit_name = unit_names[0]
                     print(f"找到单元名称: {unit_name}")
+
+            # 获取检测方法（第一个非空值）- N列
+            detection_method = ""
+            detection_level = ""
+            if '检测方法' in column_mapping:
+                detection_methods = order_df[column_mapping['检测方法']].dropna().tolist()
+                if detection_methods:
+                    detection_method = detection_methods[0]
+                    print(f"找到检测方法: {detection_method}")
+
+                    # 根据检测方法获取对应的检测级别值
+                    detection_level = get_detection_level_by_method(detection_method)
+                    if detection_level:
+                        print(f"根据检测方法 '{detection_method}' 确定检测级别值: '{detection_level}'")
             
                     # 打开Word文档
             print(f"正在处理Word文档: {word_template_path}")
@@ -260,17 +325,25 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                 
                 print("==== 参数值替换完成 ====\n")
             
-            # 打印段落
+            # 替换段落中的参数值
             for paragraph in doc.paragraphs:
                 if unit_name and "单元名称值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("单元名称值", unit_name)
                     print(f"已将段落中的'单元名称值'替换为'{unit_name}'")
-                
-                if "委托单号值" in paragraph.text:
-                    paragraph.text = paragraph.text.replace("委托单号值", str(order_number))
-                    print(f"已将段落中的'委托单号值'替换为'{order_number}'")
+
+                if detection_method and "检测方法值" in paragraph.text:
+                    paragraph.text = paragraph.text.replace("检测方法值", detection_method)
+                    print(f"已将段落中的'检测方法值'替换为'{detection_method}'")
+
+                if detection_level and "检测级别值" in paragraph.text:
+                    paragraph.text = paragraph.text.replace("检测级别值", detection_level)
+                    print(f"已将段落中的'检测级别值'替换为'{detection_level}'")
+
+                if "委托单号编号值" in paragraph.text:
+                    paragraph.text = paragraph.text.replace("委托单号编号值", str(order_number))
+                    print(f"已将段落中的'委托单号编号值'替换为'{order_number}'")
             
-            # 遍历表格中的单元格
+            # 遍历表格中的单元格替换参数值
             for table in doc.tables:
                 for row in table.rows:
                     for cell in row.cells:
@@ -278,10 +351,18 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                             if unit_name and "单元名称值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("单元名称值", unit_name)
                                 print(f"已将表格单元格中的'单元名称值'替换为'{unit_name}'")
-                            
-                            if "委托单号值" in paragraph.text:
-                                paragraph.text = paragraph.text.replace("委托单号值", str(order_number))
-                                print(f"已将表格单元格中的'委托单号值'替换为'{order_number}'")
+
+                            if detection_method and "检测方法值" in paragraph.text:
+                                paragraph.text = paragraph.text.replace("检测方法值", detection_method)
+                                print(f"已将表格单元格中的'检测方法值'替换为'{detection_method}'")
+
+                            if detection_level and "检测级别值" in paragraph.text:
+                                paragraph.text = paragraph.text.replace("检测级别值", detection_level)
+                                print(f"已将表格单元格中的'检测级别值'替换为'{detection_level}'")
+
+                            if "委托单号编号值" in paragraph.text:
+                                paragraph.text = paragraph.text.replace("委托单号编号值", str(order_number))
+                                print(f"已将表格单元格中的'委托单号编号值'替换为'{order_number}'")
             
             # 填写通知单编号（委托单编号）
             notification_number_updated = False
@@ -586,47 +667,33 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                         cell.paragraphs[0].text = str(welder_numbers[i])
                                         print(f"已更新第{row_idx+1}行焊工号: {welder_numbers[i]}")
                             
-                            # 5. 填写检测结果（返修补片）
-                            if "检测结果" in column_indices and i < len(repair_results):
+                            # 5. 填写检测结果（焊口情况）- K列对应检测结果
+                            if "检测结果" in column_indices and i < len(weld_conditions):
                                 col_idx = column_indices["检测结果"]
                                 if col_idx < len(row.cells):
                                     cell = row.cells[col_idx]
-                                    repair_result = repair_results[i]
+                                    weld_condition = weld_conditions[i]
                                     if cell.paragraphs:
                                         # 检查是否为空或NaN
-                                        if pd.isna(repair_result):
+                                        if pd.isna(weld_condition):
                                             cell.paragraphs[0].text = ""
                                         else:
-                                            cell.paragraphs[0].text = str(repair_result)
-                                        print(f"已更新第{row_idx+1}行检测结果")
-                            
-                            # 6. 填写返修张/处数（实际不合格）
-                            if "返修张/处数" in column_indices and i < len(failure_counts):
+                                            cell.paragraphs[0].text = str(weld_condition)
+                                        print(f"已更新第{row_idx+1}行检测结果: {weld_condition}")
+
+                            # 6. 填写返修张/处数 - L列，空值填"0"
+                            if "返修张/处数" in column_indices and i < len(repair_counts):
                                 col_idx = column_indices["返修张/处数"]
                                 if col_idx < len(row.cells):
                                     cell = row.cells[col_idx]
-                                    failure_count = failure_counts[i]
+                                    repair_count = repair_counts[i]
                                     if cell.paragraphs:
-                                        # 检查是否为空或NaN
-                                        if pd.isna(failure_count):
+                                        # 检查是否为空或NaN，空值填"0"
+                                        if pd.isna(repair_count) or repair_count == "":
                                             cell.paragraphs[0].text = "0"  # 为空填写0
                                         else:
-                                            cell.paragraphs[0].text = str(failure_count)
-                                        print(f"已更新第{row_idx+1}行返修张/处数")
-                            
-                            # 7. 填写备注
-                            if "备注" in column_indices and i < len(notes):
-                                col_idx = column_indices["备注"]
-                                if col_idx < len(row.cells):
-                                    cell = row.cells[col_idx]
-                                    note = notes[i]
-                                    if cell.paragraphs:
-                                        # 检查是否为空或NaN
-                                        if pd.isna(note):
-                                            cell.paragraphs[0].text = ""
-                                        else:
-                                            cell.paragraphs[0].text = str(note)
-                                        print(f"已更新第{row_idx+1}行备注")
+                                            cell.paragraphs[0].text = str(repair_count)
+                                        print(f"已更新第{row_idx+1}行返修张/处数: {cell.paragraphs[0].text}")
             
             # 保存文档
             try:
