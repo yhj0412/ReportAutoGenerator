@@ -11,6 +11,51 @@ def find_column_with_keyword(df, keyword):
     matching_cols = [col for col in df.columns if keyword.lower() in col.lower()]
     return matching_cols[0] if matching_cols else None
 
+def get_detection_level_by_method(detection_method):
+    """根据检测方法获取对应的检测级别值
+
+    Args:
+        detection_method: 检测方法字符串
+
+    Returns:
+        str: 对应的检测级别值
+    """
+    if not detection_method:
+        return ""
+
+    # 转换为字符串并去除空格，转为大写进行匹配
+    method = str(detection_method).strip().upper()
+
+    # 检测方法与检测级别值的映射关系
+    method_mapping = {
+        # 硬度检测或YD
+        '硬度检测': '力学   级',
+        'YD': '力学   级',
+        # 光谱检测或PMIN
+        '光谱检测': '光谱分析  级',
+        'PMIN': '光谱分析  级',
+        # 其他检测方法
+        'UT': 'UT  级',
+        'PT': 'PT  级',
+        'MT': 'MT  级',
+        'RT': 'RT  级',
+        'TOFD': 'TOFD  级',
+        'PA': 'PA  级'
+    }
+
+    # 精确匹配
+    if method in method_mapping:
+        return method_mapping[method]
+
+    # 模糊匹配 - 检查是否包含关键字
+    for key, value in method_mapping.items():
+        if key in method:
+            return value
+
+    # 如果没有匹配到，返回空字符串
+    print(f"警告: 未找到检测方法 '{detection_method}' 对应的检测级别值")
+    return ""
+
 def get_output_filename(word_template_path, order_number):
     """根据Word模板路径和委托单编号生成输出文件名
     
@@ -203,21 +248,32 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
         # 替换文档中的参数值
         if project_name or client_name or inspection_method:
             print("\n==== 开始替换参数值 ====")
-            
+
+            # 根据传入的检测方法参数计算检测级别值
+            detection_level = ""
+            if inspection_method:
+                detection_level = get_detection_level_by_method(inspection_method)
+                if detection_level:
+                    print(f"根据传参检测方法 '{inspection_method}' 确定检测级别值: '{detection_level}'")
+
             # 遍历所有段落和表格中的单元格，替换参数值
             # 1. 遍历段落
             for paragraph in doc.paragraphs:
                 if project_name and "工程名称参数值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("工程名称参数值", project_name)
                     print(f"已将段落中的'工程名称参数值'替换为'{project_name}'")
-                
+
                 if client_name and "委托单位参数值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("委托单位参数值", client_name)
                     print(f"已将段落中的'委托单位参数值'替换为'{client_name}'")
-                
+
                 if inspection_method and "检测方法参数" in paragraph.text:
                     paragraph.text = paragraph.text.replace("检测方法参数", inspection_method)
                     print(f"已将段落中的'检测方法参数'替换为'{inspection_method}'")
+
+                if detection_level and "检测级别值" in paragraph.text:
+                    paragraph.text = paragraph.text.replace("检测级别值", detection_level)
+                    print(f"已将段落中的'检测级别值'替换为'{detection_level}'")
             
             # 2. 遍历表格中的单元格
             for table in doc.tables:
@@ -227,14 +283,18 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                             if project_name and "工程名称参数值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("工程名称参数值", project_name)
                                 print(f"已将表格单元格中的'工程名称参数值'替换为'{project_name}'")
-                            
+
                             if client_name and "委托单位参数值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("委托单位参数值", client_name)
                                 print(f"已将表格单元格中的'委托单位参数值'替换为'{client_name}'")
-                            
+
                             if inspection_method and "检测方法参数" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("检测方法参数", inspection_method)
                                 print(f"已将表格单元格中的'检测方法参数'替换为'{inspection_method}'")
+
+                            if detection_level and "检测级别值" in paragraph.text:
+                                paragraph.text = paragraph.text.replace("检测级别值", detection_level)
+                                print(f"已将表格单元格中的'检测级别值'替换为'{detection_level}'")
             
             print("==== 参数值替换完成 ====\n")
         
