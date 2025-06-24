@@ -317,7 +317,7 @@ class NDTResultGUI:
         word_label = ttk.Label(word_frame, text="选择Word模板文件(docx)*")
         word_label.pack(side=tk.LEFT, padx=(0, 5))
         self.ray_word_path = tk.StringVar()
-        self.ray_word_path.set("生成器/wod/1_射线检测委托台账_Mode2.docx")  # 默认值
+        self.ray_word_path.set("生成器/word/1_射线检测委托台账_Mode2.docx")  # 默认值
         word_entry = ttk.Entry(word_frame, textvariable=self.ray_word_path)
         word_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         word_button = ttk.Button(word_frame, text="浏览...", command=self.browse_ray_word)
@@ -384,7 +384,7 @@ class NDTResultGUI:
             self.ray_client_entry.pack(side=tk.LEFT, padx=(0, 30))
 
             # 更新Word模板默认路径
-            self.ray_word_path.set("生成器/wod/1_射线检测委托台账_Mode1.docx")
+            self.ray_word_path.set("生成器/word/1_射线检测委托台账_Mode1.docx")
 
             print("切换到模板1，显示8个参数：工程名称、委托单位、检测标准、验收规范、检测方法、检测技术等级、外观检查、坡口形式")
         else:
@@ -399,7 +399,7 @@ class NDTResultGUI:
             self.ray_category_entry.pack(side=tk.LEFT, padx=(0, 30))
 
             # 更新Word模板默认路径
-            self.ray_word_path.set("生成器/wod/1_射线检测委托台账_Mode2.docx")
+            self.ray_word_path.set("生成器/word/1_射线检测委托台账_Mode2.docx")
 
             print("切换到模板2，显示5个参数：工程名称、检测类别号、检测标准、检测方法、坡口形式")
 
@@ -570,13 +570,13 @@ class NDTResultGUI:
             # 显示模板1专用参数
             self.surface_row3_frame.pack(fill=tk.X, pady=5)
             # 更新Word模板默认路径
-            self.surface_word_path.set("生成器/wod/3_表面结果通知单台账_Mode1.docx")
+            self.surface_word_path.set("生成器/word/3_表面结果通知单台账_Mode1.docx")
             print("切换到模板1，显示检测单位和检测标准参数")
         else:
             # 隐藏模板1专用参数
             self.surface_row3_frame.pack_forget()
             # 更新Word模板默认路径
-            self.surface_word_path.set("生成器/wod/3_表面结果通知单台账_Mode2.docx")
+            self.surface_word_path.set("生成器/word/3_表面结果通知单台账_Mode2.docx")
             print("切换到模板2，隐藏检测单位和检测标准参数")
     
     def create_surface_defect_frame(self, parent_frame):
@@ -669,7 +669,7 @@ class NDTResultGUI:
         word_label = ttk.Label(word_frame, text="选择Word模板文件(docx)*")
         word_label.pack(side=tk.LEFT, padx=(0, 5))
         self.surface_word_path = tk.StringVar()
-        self.surface_word_path.set("生成器/wod/3_表面结果通知单台账_Mode2.docx")  # 默认值
+        self.surface_word_path.set("生成器/word/3_表面结果通知单台账_Mode2.docx")  # 默认值
         word_entry = ttk.Entry(word_frame, textvariable=self.surface_word_path)
         word_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         word_button = ttk.Button(word_frame, text="浏览...", command=self.browse_surface_word)
@@ -803,7 +803,7 @@ class NDTResultGUI:
         word_label = ttk.Label(word_frame, text="选择Word模板文件(docx)*")
         word_label.pack(side=tk.LEFT, padx=(0, 5))
         self.radio_word_path = tk.StringVar()
-        self.radio_word_path.set("生成器/wod/4_射线检测记录.docx")  # 默认值
+        self.radio_word_path.set("生成器/word/4_射线检测记录.docx")  # 默认值
         word_entry = ttk.Entry(word_frame, textvariable=self.radio_word_path)
         word_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         word_button = ttk.Button(word_frame, text="浏览...", command=self.browse_radio_word)
@@ -921,7 +921,7 @@ class NDTResultGUI:
         word_label = ttk.Label(word_frame, text="选择Word模板文件(docx)*")
         word_label.pack(side=tk.LEFT, padx=(0, 5))
         self.radio_renewal_word_path = tk.StringVar()
-        self.radio_renewal_word_path.set("生成器/wod/5_射线检测记录续.docx")  # 默认值
+        self.radio_renewal_word_path.set("生成器/word/5_射线检测记录续.docx")  # 默认值
         word_entry = ttk.Entry(word_frame, textvariable=self.radio_renewal_word_path)
         word_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         word_button = ttk.Button(word_frame, text="浏览...", command=self.browse_radio_renewal_word)

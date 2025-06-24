@@ -864,8 +864,8 @@ def main():
     parser = argparse.ArgumentParser(description='将Excel数据填入Word文档')
     parser.add_argument('-e', '--excel', default="生成器/Excel/5_生成器评片记录续表模版.xlsx", 
                         help='Excel表格路径 (默认: 生成器/Excel/5_生成器评片记录续表模版.xlsx)')
-    parser.add_argument('-w', '--word', default="生成器/wod/5_射线检测记录_续.docx", 
-                        help='Word模板文档路径 (默认: 生成器/wod/5_射线检测记录_续.docx)')
+    parser.add_argument('-w', '--word', default="生成器/word/5_射线检测记录_续.docx", 
+                        help='Word模板文档路径 (默认: 生成器/word/5_射线检测记录_续.docx)')
     parser.add_argument('-o', '--output', 
                         help='输出目录 (可选，默认为"生成器/输出报告/5_射线检测记录续"目录)')
     parser.add_argument('-p', '--project', 

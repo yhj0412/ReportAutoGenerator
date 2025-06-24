@@ -60,7 +60,7 @@ def test_ray_detection_template():
 8. 坡口形式 (groove_type)
 
 对应文件：Ray_Detection_mode1.py
-Word模板：生成器/wod/1_射线检测委托台账_Mode1.docx
+Word模板：生成器/word/1_射线检测委托台账_Mode1.docx
 输出目录：生成器/输出报告/1_射线检测委托台账/1_射线检测委托台账_Mode1/
 
 功能特点：
@@ -77,7 +77,7 @@ Word模板：生成器/wod/1_射线检测委托台账_Mode1.docx
 5. 坡口形式 (groove_type)
 
 对应文件：Ray_Detection.py
-Word模板：生成器/wod/1_射线检测委托台账_Mode2.docx
+Word模板：生成器/word/1_射线检测委托台账_Mode2.docx
 输出目录：生成器/输出报告/1_射线检测委托台账_Mode2/
 
 功能特点：

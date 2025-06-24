@@ -129,8 +129,8 @@ def verify_template_files():
     print("=== 验证模板文件 ===")
     
     template_files = [
-        "生成器/wod/1_射线检测委托台账_Mode1.docx",
-        "生成器/wod/1_射线检测委托台账_Mode2.docx"
+        "生成器/word/1_射线检测委托台账_Mode1.docx",
+        "生成器/word/1_射线检测委托台账_Mode2.docx"
     ]
     
     for file_path in template_files:

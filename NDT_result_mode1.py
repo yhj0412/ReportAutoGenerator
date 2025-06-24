@@ -603,8 +603,8 @@ def main():
     parser = argparse.ArgumentParser(description='将Excel数据填入Word文档 - Mode1模式')
     parser.add_argument('-e', '--excel', default="生成器/Excel/2_生成器结果.xlsx",
                         help='Excel表格路径 (默认: 生成器/Excel/2_生成器结果.xlsx)')
-    parser.add_argument('-w', '--word', default="生成器/wod/2_RT结果通知台账_Mode1.docx", 
-                        help='Word模板文档路径 (默认: 生成器/wod/2_RT结果通知台账_Mode1.docx)')
+    parser.add_argument('-w', '--word', default="生成器/word/2_RT结果通知台账_Mode1.docx", 
+                        help='Word模板文档路径 (默认: 生成器/word/2_RT结果通知台账_Mode1.docx)')
     parser.add_argument('-o', '--output', 
                         help='输出目录 (可选，默认为"生成器/输出报告/2_RT结果通知单台账_Mode/2_RT结果通知单台账_Mode1"目录)')
     parser.add_argument('-p', '--project', 
