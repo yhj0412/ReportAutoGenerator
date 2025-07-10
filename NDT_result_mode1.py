@@ -12,9 +12,19 @@ import os
 import sys
 import pandas as pd
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 import argparse
 import re
 from datetime import datetime
+
+def set_cell_center_alignment(cell):
+    """设置单元格文本居中对齐"""
+    for paragraph in cell.paragraphs:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+def set_paragraph_center_alignment(paragraph):
+    """设置段落文本居中对齐"""
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 def update_date_in_cell(cell, year, month, day):
     """更新单元格中的日期"""
@@ -237,23 +247,28 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                     for paragraph in doc.paragraphs:
                         if project_name and "工程名称值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("工程名称值", project_name)
-                            print(f"已将段落中的'工程名称值'替换为'{project_name}'")
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将段落中的'工程名称值'替换为'{project_name}'并设置居中")
 
                         if client_name and "委托单位值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("委托单位值", client_name)
-                            print(f"已将段落中的'委托单位值'替换为'{client_name}'")
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将段落中的'委托单位值'替换为'{client_name}'并设置居中")
 
                         if inspection_unit and "检测单位值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("检测单位值", inspection_unit)
-                            print(f"已将段落中的'检测单位值'替换为'{inspection_unit}'")
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将段落中的'检测单位值'替换为'{inspection_unit}'并设置居中")
 
                         if inspection_standard and "检测标准值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("检测标准值", inspection_standard)
-                            print(f"已将段落中的'检测标准值'替换为'{inspection_standard}'")
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将段落中的'检测标准值'替换为'{inspection_standard}'并设置居中")
 
                         if inspection_method and "检测方法值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("检测方法值", inspection_method)
-                            print(f"已将段落中的'检测方法值'替换为'{inspection_method}'")
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将段落中的'检测方法值'替换为'{inspection_method}'并设置居中")
 
                     # 2. 遍历表格中的单元格，替换参数值
                     for table in doc.tables:
@@ -261,23 +276,28 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                             for cell in row.cells:
                                 if project_name and "工程名称值" in cell.text:
                                     cell.text = cell.text.replace("工程名称值", project_name)
-                                    print(f"已将表格中的'工程名称值'替换为'{project_name}'")
+                                    set_cell_center_alignment(cell)
+                                    print(f"已将表格中的'工程名称值'替换为'{project_name}'并设置居中")
 
                                 if client_name and "委托单位值" in cell.text:
                                     cell.text = cell.text.replace("委托单位值", client_name)
-                                    print(f"已将表格中的'委托单位值'替换为'{client_name}'")
+                                    set_cell_center_alignment(cell)
+                                    print(f"已将表格中的'委托单位值'替换为'{client_name}'并设置居中")
 
                                 if inspection_unit and "检测单位值" in cell.text:
                                     cell.text = cell.text.replace("检测单位值", inspection_unit)
-                                    print(f"已将表格中的'检测单位值'替换为'{inspection_unit}'")
+                                    set_cell_center_alignment(cell)
+                                    print(f"已将表格中的'检测单位值'替换为'{inspection_unit}'并设置居中")
 
                                 if inspection_standard and "检测标准值" in cell.text:
                                     cell.text = cell.text.replace("检测标准值", inspection_standard)
-                                    print(f"已将表格中的'检测标准值'替换为'{inspection_standard}'")
+                                    set_cell_center_alignment(cell)
+                                    print(f"已将表格中的'检测标准值'替换为'{inspection_standard}'并设置居中")
 
                                 if inspection_method and "检测方法值" in cell.text:
                                     cell.text = cell.text.replace("检测方法值", inspection_method)
-                                    print(f"已将表格中的'检测方法值'替换为'{inspection_method}'")
+                                    set_cell_center_alignment(cell)
+                                    print(f"已将表格中的'检测方法值'替换为'{inspection_method}'并设置居中")
                 
                 # 处理单值替换（合格级别、单元名称、完成日期）
                 print("\n==== 开始处理单值替换 ====")
@@ -306,7 +326,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                 for paragraph in doc.paragraphs:
                     if "合格级别值" in paragraph.text and qualification_level:
                         paragraph.text = paragraph.text.replace("合格级别值", qualification_level)
-                        print(f"已将'合格级别值'替换为'{qualification_level}'")
+                        set_paragraph_center_alignment(paragraph)
+                        print(f"已将'合格级别值'替换为'{qualification_level}'并设置居中")
 
                     if "单元名称值" in paragraph.text and unit_name:
                         paragraph.text = paragraph.text.replace("单元名称值", unit_name)
@@ -314,12 +335,14 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
 
                     if "委托单编号值" in paragraph.text and order_number_value:
                         paragraph.text = paragraph.text.replace("委托单编号值", order_number_value)
-                        print(f"已将'委托单编号值'替换为'{order_number_value}'")
+                        set_paragraph_center_alignment(paragraph)
+                        print(f"已将'委托单编号值'替换为'{order_number_value}'并设置居中")
 
                     if "完成日期值" in paragraph.text:
                         completion_date_str = f"{year}年{month}月{day}日"
                         paragraph.text = paragraph.text.replace("完成日期值", completion_date_str)
-                        print(f"已将'完成日期值'替换为'{completion_date_str}'")
+                        set_paragraph_center_alignment(paragraph)
+                        print(f"已将'完成日期值'替换为'{completion_date_str}'并设置居中")
 
                 # 处理表格中的单值替换
                 for table in doc.tables:
@@ -327,7 +350,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                         for cell in row.cells:
                             if "合格级别值" in cell.text and qualification_level:
                                 cell.text = cell.text.replace("合格级别值", qualification_level)
-                                print(f"已将表格中的'合格级别值'替换为'{qualification_level}'")
+                                set_cell_center_alignment(cell)
+                                print(f"已将表格中的'合格级别值'替换为'{qualification_level}'并设置居中")
 
                             if "单元名称值" in cell.text and unit_name:
                                 cell.text = cell.text.replace("单元名称值", unit_name)
@@ -335,12 +359,14 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
 
                             if "委托单编号值" in cell.text and order_number_value:
                                 cell.text = cell.text.replace("委托单编号值", order_number_value)
-                                print(f"已将表格中的'委托单编号值'替换为'{order_number_value}'")
+                                set_cell_center_alignment(cell)
+                                print(f"已将表格中的'委托单编号值'替换为'{order_number_value}'并设置居中")
 
                             if "完成日期值" in cell.text:
                                 completion_date_str = f"{year}年{month}月{day}日"
                                 cell.text = cell.text.replace("完成日期值", completion_date_str)
-                                print(f"已将表格中的'完成日期值'替换为'{completion_date_str}'")
+                                set_cell_center_alignment(cell)
+                                print(f"已将表格中的'完成日期值'替换为'{completion_date_str}'并设置居中")
 
                 # 处理日期填入（施工单位、监理单位、项目部/装置、检测单位）
                 print("\n==== 开始处理日期填入 ====")
@@ -567,10 +593,85 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                                 print(f"已更新第{row_idx+1}行不合格: {unqualified_counts[i]}")
                             else:
                                 print(f"警告: 表格行数不足，无法填充第{i+1}条数据")
+
+                        # 在焊口编号数据内容的下一行添加"以下空白"
+                        print("\n==== 添加'以下空白'提示 ====")
+                        next_empty_row_idx = actual_data_start_row + len(pipe_numbers)
+                        if next_empty_row_idx < len(table.rows):
+                            next_row = table.rows[next_empty_row_idx]
+                            if "焊口编号" in column_indices:
+                                weld_col_idx = column_indices["焊口编号"]
+                                if weld_col_idx < len(next_row.cells):
+                                    cell = next_row.cells[weld_col_idx]
+                                    if cell.paragraphs:
+                                        cell.paragraphs[0].text = "以下空白"
+                                        set_cell_center_alignment(cell)
+                                        print(f"已在第{next_empty_row_idx+1}行焊口编号列添加'以下空白'并设置居中")
+
                         break
 
                 if not table_found:
                     print("警告: 未找到合适的数据表格")
+
+                # 数据统计汇总 - 修改统计逻辑
+                print("\n==== 开始数据统计汇总 ====")
+                total_welds = len(weld_numbers)  # 焊口编号总道数
+
+                # 按焊口编号统计合格/不合格道数
+                qualified_welds = 0  # 合格道数
+                unqualified_welds = 0  # 不合格道数
+
+                # 遍历每个焊口编号，判断是否合格
+                for i, weld_num in enumerate(weld_numbers):
+                    if i < len(unqualified_counts):
+                        unqualified_count = unqualified_counts[i]
+                        # 如果不合格数为0或空，则该焊口为合格
+                        if not unqualified_count or unqualified_count == '0' or unqualified_count == 0:
+                            qualified_welds += 1
+                            print(f"焊口 {weld_num}: 不合格数={unqualified_count} → 合格")
+                        else:
+                            unqualified_welds += 1
+                            print(f"焊口 {weld_num}: 不合格数={unqualified_count} → 不合格")
+                    else:
+                        # 如果没有对应的不合格数据，默认为合格
+                        qualified_welds += 1
+                        print(f"焊口 {weld_num}: 无不合格数据 → 合格")
+
+                # 计算总张数：累加所有合格和不合格的数值
+                total_sheets = 0
+                for i in range(len(weld_numbers)):
+                    if i < len(qualified_counts) and qualified_counts[i] and str(qualified_counts[i]).isdigit():
+                        total_sheets += int(qualified_counts[i])
+                    if i < len(unqualified_counts) and unqualified_counts[i] and str(unqualified_counts[i]).isdigit():
+                        total_sheets += int(unqualified_counts[i])
+
+                summary_text = f"共检测{total_welds}道，合格{qualified_welds}道，不合格{unqualified_welds}道，共计{total_sheets}张。"
+                print(f"统计结果: {summary_text}")
+                print(f"详细统计: 总道数={total_welds}, 合格道数={qualified_welds}, 不合格道数={unqualified_welds}, 总张数={total_sheets}")
+
+                # 在文档中查找"说明"位置并添加统计信息
+                for paragraph in doc.paragraphs:
+                    if "说明" in paragraph.text:
+                        # 在"说明"后添加统计信息
+                        if paragraph.text.strip() == "说明":
+                            paragraph.text = f"说明：{summary_text}"
+                        else:
+                            paragraph.text = paragraph.text + summary_text
+                        print(f"已在段落'说明'后添加统计信息: {summary_text}")
+                        break
+
+                # 如果在段落中没找到，则在表格中查找
+                for table in doc.tables:
+                    for row in table.rows:
+                        for cell in row.cells:
+                            if "说明" in cell.text:
+                                # 在"说明"后添加统计信息
+                                if cell.text.strip() == "说明":
+                                    cell.text = f"说明：{summary_text}"
+                                else:
+                                    cell.text = cell.text + summary_text
+                                print(f"已在表格'说明'后添加统计信息: {summary_text}")
+                                break
 
                 # 保存文档
                 report_output_path = os.path.join(output_dir, f"{order_number}_RT结果通知单台账_Mode1.docx")

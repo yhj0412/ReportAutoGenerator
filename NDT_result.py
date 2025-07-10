@@ -3,6 +3,7 @@ import os
 import sys
 import argparse
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from datetime import datetime
 import re
 
@@ -10,6 +11,11 @@ def find_column_with_keyword(df, keyword):
     """查找包含指定关键字的列"""
     matching_cols = [col for col in df.columns if keyword.lower() in col.lower()]
     return matching_cols[0] if matching_cols else None
+
+def set_cell_center_alignment(cell):
+    """设置单元格文本居中对齐"""
+    for paragraph in cell.paragraphs:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
 def get_detection_level_by_method(detection_method):
     """根据检测方法获取对应的检测级别值
@@ -531,6 +537,9 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                         column_indices["委托单编号"] = j
                         header_row_index = i
                         header_found = True
+                    elif "检测批号" in cell_text:
+                        column_indices["检测批号"] = j
+                        header_found = True
                     elif "单线号" in cell_text:
                         column_indices["单线号"] = j
                         header_found = True
@@ -602,8 +611,17 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = str(order_number)
                                     print(f"已更新第{row_idx+1}行委托单编号: {order_number}")
-                        
-                        # 2. 填写单线号（检件编号）
+
+                        # 2. 填写检测批号（填入"/"）
+                        if "检测批号" in column_indices:
+                            col_idx = column_indices["检测批号"]
+                            if col_idx < len(row.cells):
+                                cell = row.cells[col_idx]
+                                if cell.paragraphs:
+                                    cell.paragraphs[0].text = "/"
+                                    print(f"已更新第{row_idx+1}行检测批号: /")
+
+                        # 3. 填写单线号（检件编号）
                         if "单线号" in column_indices and i < len(inspection_numbers):
                             col_idx = column_indices["单线号"]
                             if col_idx < len(row.cells):
@@ -612,7 +630,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     cell.paragraphs[0].text = str(inspection_numbers[i])
                                     print(f"已更新第{row_idx+1}行单线号: {inspection_numbers[i]}")
                         
-                        # 3. 填写焊口号
+                        # 4. 填写焊口号
                         if "焊口号" in column_indices and i < len(weld_numbers):
                             col_idx = column_indices["焊口号"]
                             if col_idx < len(row.cells):
@@ -620,8 +638,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = str(weld_numbers[i])
                                     print(f"已更新第{row_idx+1}行焊口号: {weld_numbers[i]}")
-                        
-                        # 4. 填写焊工号
+
+                        # 5. 填写焊工号
                         if "焊工号" in column_indices and i < len(welder_numbers):
                             col_idx = column_indices["焊工号"]
                             if col_idx < len(row.cells):
@@ -629,8 +647,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = str(welder_numbers[i])
                                     print(f"已更新第{row_idx+1}行焊工号: {welder_numbers[i]}")
-                        
-                        # 5. 填写检测结果（返修补片）
+
+                        # 6. 填写检测结果（返修补片）
                         if "检测结果" in column_indices and i < len(repair_results):
                             col_idx = column_indices["检测结果"]
                             if col_idx < len(row.cells):
@@ -643,8 +661,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     else:
                                         cell.paragraphs[0].text = str(repair_result)
                                     print(f"已更新第{row_idx+1}行检测结果")
-                        
-                        # 6. 填写返修张/处数（实际不合格）
+
+                        # 7. 填写返修张/处数（实际不合格）
                         if "返修张/处数" in column_indices and i < len(failure_counts):
                             col_idx = column_indices["返修张/处数"]
                             if col_idx < len(row.cells):
@@ -655,10 +673,21 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     if pd.isna(failure_count):
                                         cell.paragraphs[0].text = "0"  # 为空填写0
                                     else:
-                                        cell.paragraphs[0].text = str(failure_count)
-                                    print(f"已更新第{row_idx+1}行返修张/处数")
-                        
-                        # 7. 填写备注
+                                        # 转换为整数格式，去除小数点
+                                        try:
+                                            # 如果是数字，转换为整数
+                                            if isinstance(failure_count, (int, float)):
+                                                cell.paragraphs[0].text = str(int(failure_count))
+                                            else:
+                                                # 如果是字符串，尝试转换为数字再转整数
+                                                numeric_value = float(str(failure_count))
+                                                cell.paragraphs[0].text = str(int(numeric_value))
+                                        except (ValueError, TypeError):
+                                            # 如果转换失败，保持原值
+                                            cell.paragraphs[0].text = str(failure_count)
+                                    print(f"已更新第{row_idx+1}行返修张/处数: {cell.paragraphs[0].text}")
+
+                        # 8. 填写备注
                         if "备注" in column_indices and i < len(notes):
                             col_idx = column_indices["备注"]
                             if col_idx < len(row.cells):
@@ -671,7 +700,31 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     else:
                                         cell.paragraphs[0].text = str(note)
                                     print(f"已更新第{row_idx+1}行备注")
-        
+
+                # 在单线号数据内容的下一行添加"以下空白"
+                print("\n==== 添加'以下空白'提示 ====")
+                if "单线号" in column_indices and data_count > 0:
+                    next_empty_row_idx = data_rows[data_count - 1] + 1  # 数据最后一行的下一行
+                    if next_empty_row_idx < len(table.rows):
+                        next_row = table.rows[next_empty_row_idx]
+                        single_line_col_idx = column_indices["单线号"]
+                        if single_line_col_idx < len(next_row.cells):
+                            cell = next_row.cells[single_line_col_idx]
+                            if cell.paragraphs:
+                                cell.paragraphs[0].text = "以下空白"
+                                set_cell_center_alignment(cell)  # 设置居中
+                                print(f"已在第{next_empty_row_idx+1}行单线号列添加'以下空白'并设置居中")
+                    else:
+                        # 如果没有足够的行，添加新行
+                        new_row = table.add_row()
+                        single_line_col_idx = column_indices["单线号"]
+                        if single_line_col_idx < len(new_row.cells):
+                            cell = new_row.cells[single_line_col_idx]
+                            if cell.paragraphs:
+                                cell.paragraphs[0].text = "以下空白"
+                                set_cell_center_alignment(cell)  # 设置居中
+                                print(f"已添加新行并在单线号列添加'以下空白'并设置居中")
+
         # 保存文档
         doc.save(report_output_path)
         print(f"文档已保存至: {report_output_path}")

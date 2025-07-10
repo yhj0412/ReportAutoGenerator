@@ -3,6 +3,7 @@ import os
 import sys
 import argparse
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from datetime import datetime
 import re
 
@@ -309,12 +310,16 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
             # 查找表头行，确定各列的位置
             column_indices = {}
             header_row_index = -1
-            
+
             # 查找包含"管道编号"、"焊口号"、"焊工号"等的行
             for i, row in enumerate(table.rows):
                 header_found = False
                 for j, cell in enumerate(row.cells):
-                    if "管道编号" in cell.text:
+                    if "检测批号" in cell.text:
+                        column_indices["检测批号"] = j
+                        header_row_index = i
+                        header_found = True
+                    elif "管道编号" in cell.text:
                         column_indices["管道编号"] = j
                         header_row_index = i
                         header_found = True
@@ -336,7 +341,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                     elif "单线号" in cell.text:
                         column_indices["单线号"] = j
                         header_found = True
-                
+
                 if header_found and header_row_index >= 0:
                     break
             
@@ -383,8 +388,18 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                     if i < len(data_rows):
                         row_idx = data_rows[i]
                         row = table.rows[row_idx]
-                        
-                        # 1. 填写管道编号（检件编号）
+
+                        # 1. 填写检测批号（根据管道编号个数进行排序）
+                        if "检测批号" in column_indices:
+                            col_idx = column_indices["检测批号"]
+                            if col_idx < len(row.cells):
+                                cell = row.cells[col_idx]
+                                if cell.paragraphs:
+                                    # 检测批号从1开始排序
+                                    cell.paragraphs[0].text = str(i + 1)
+                                    print(f"已更新第{row_idx+1}行检测批号: {i + 1}")
+
+                        # 2. 填写管道编号（检件编号）
                         if "管道编号" in column_indices and i < len(pipe_codes):
                             col_idx = column_indices["管道编号"]
                             if col_idx < len(row.cells):
@@ -392,8 +407,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = str(pipe_codes[i])
                                     print(f"已更新第{row_idx+1}行管道编号: {pipe_codes[i]}")
-                        
-                        # 2. 填写焊口号
+
+                        # 3. 填写焊口号
                         if "焊口号" in column_indices and i < len(weld_numbers):
                             col_idx = column_indices["焊口号"]
                             if col_idx < len(row.cells):
@@ -401,8 +416,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = str(weld_numbers[i])
                                     print(f"已更新第{row_idx+1}行焊口号: {weld_numbers[i]}")
-                        
-                        # 3. 填写焊工号
+
+                        # 4. 填写焊工号
                         if "焊工号" in column_indices and i < len(welder_numbers):
                             col_idx = column_indices["焊工号"]
                             if col_idx < len(row.cells):
@@ -410,8 +425,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = str(welder_numbers[i])
                                     print(f"已更新第{row_idx+1}行焊工号: {welder_numbers[i]}")
-                        
-                        # 4. 填写焊口规格
+
+                        # 5. 填写焊口规格
                         if "焊口规格" in column_indices and i < len(specifications):
                             col_idx = column_indices["焊口规格"]
                             if col_idx < len(row.cells):
@@ -419,8 +434,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = str(specifications[i])
                                     print(f"已更新第{row_idx+1}行焊口规格: {specifications[i]}")
-                        
-                        # 5. 填写焊口材质
+
+                        # 6. 填写焊口材质
                         if "焊口材质" in column_indices and i < len(materials):
                             col_idx = column_indices["焊口材质"]
                             if col_idx < len(row.cells):
@@ -428,8 +443,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = str(materials[i])
                                     print(f"已更新第{row_idx+1}行焊口材质: {materials[i]}")
-                        
-                        # 6. 填写备注
+
+                        # 7. 填写备注
                         if "备注" in column_indices and i < len(notes):
                             col_idx = column_indices["备注"]
                             if col_idx < len(row.cells):
@@ -439,8 +454,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                     if pd.notna(note):  # 检查是否为NaN
                                         cell.paragraphs[0].text = str(note)
                                         print(f"已更新第{row_idx+1}行备注")
-                        
-                        # 7. 填写单线号
+
+                        # 8. 填写单线号
                         if "单线号" in column_indices and i < len(line_numbers):
                             col_idx = column_indices["单线号"]
                             if col_idx < len(row.cells):
@@ -448,6 +463,34 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = str(line_numbers[i])
                                     print(f"已更新第{row_idx+1}行单线号: {line_numbers[i]}")
+
+                # 在数据填充完成后，在下一行的"管道编号"列填写"以下空白"
+                if "管道编号" in column_indices and data_count < len(data_rows):
+                    # 找到数据填充后的下一行
+                    next_row_idx = data_rows[data_count] if data_count < len(data_rows) else None
+                    if next_row_idx is not None:
+                        row = table.rows[next_row_idx]
+                        col_idx = column_indices["管道编号"]
+                        if col_idx < len(row.cells):
+                            cell = row.cells[col_idx]
+                            if cell.paragraphs:
+                                # 设置文本为"以下空白"
+                                cell.paragraphs[0].text = "以下空白"
+                                # 设置居中对齐
+                                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                                print(f"已在第{next_row_idx+1}行管道编号列填写'以下空白'并居中显示")
+                elif "管道编号" in column_indices and data_count > 0:
+                    # 如果没有多余的行，需要添加一行来填写"以下空白"
+                    new_row = table.add_row()
+                    col_idx = column_indices["管道编号"]
+                    if col_idx < len(new_row.cells):
+                        cell = new_row.cells[col_idx]
+                        if cell.paragraphs:
+                            # 设置文本为"以下空白"
+                            cell.paragraphs[0].text = "以下空白"
+                            # 设置居中对齐
+                            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            print(f"已添加新行并在管道编号列填写'以下空白'并居中显示")
         
         # 保存文档
         doc.save(report_output_path)
