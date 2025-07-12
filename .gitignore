@@ -1,0 +1,247 @@
+# NDT结果生成器项目 .gitignore 文件
+
+# =============================================================================
+# Python 相关
+# =============================================================================
+
+# Python 字节码文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 分发/打包相关
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller 相关
+#  通常这些文件由 PyInstaller 编写
+#  如果你在运行 PyInstaller，可以取消注释这些行
+*.manifest
+*.spec
+
+# 单元测试/覆盖率报告
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# 虚拟环境
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# =============================================================================
+# 项目特定文件
+# =============================================================================
+
+# 分发包目录 - 包含生成的分发版本，不需要版本控制
+分发包/
+分发包*/
+
+# 构建输出目录
+build/
+dist/
+
+# 生成的可执行文件
+*.exe
+
+# 临时和测试文件
+test_*.py
+测试*.py
+验证*.py
+*测试*.py
+*验证*.py
+
+# 项目文档的临时版本（保留最终版本）
+*_temp.md
+*_draft.md
+*_backup.md
+
+# =============================================================================
+# Office 文件相关
+# =============================================================================
+
+# Excel 临时文件
+~$*.xlsx
+~$*.xls
+*.tmp
+
+# Word 临时文件
+~$*.docx
+~$*.doc
+
+# PowerPoint 临时文件
+~$*.pptx
+~$*.ppt
+
+# =============================================================================
+# 操作系统相关
+# =============================================================================
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# IDE 和编辑器相关
+# =============================================================================
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# =============================================================================
+# 日志和数据库文件
+# =============================================================================
+
+# 日志文件
+*.log
+logs/
+log/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# =============================================================================
+# 其他临时文件
+# =============================================================================
+
+# 备份文件
+*.bak
+*.backup
+*.old
+
+# 压缩文件（除非是项目必需的）
+*.zip
+*.rar
+*.7z
+*.tar.gz
+*.tar.bz2
+
+# 配置文件（如果包含敏感信息）
+config.ini
+settings.ini
+.env.local
+.env.production
+
+# =============================================================================
+# 项目特定的排除规则
+# =============================================================================
+
+# 输出报告目录中的生成文件（保留目录结构，但不保存生成的报告）
+生成器/输出报告/*/*.docx
+生成器/输出报告/*/*.pdf
+生成器/输出报告/*/*.xlsx
+
+# 但是保留目录结构
+!生成器/输出报告/*/
+!生成器/输出报告/*/.gitkeep
+
+# 临时生成的文档
+*完成总结.md
+*验证报告.md
+*测试*.md
+
+# =============================================================================
+# 保留重要文件的说明
+# =============================================================================
+
+# 以下文件应该被包含在版本控制中：
+# - 源代码文件 (*.py)
+# - 项目文档 (README.md, 需求文档等)
+# - 模板文件 (生成器/Excel/*.xlsx, 生成器/word/*.docx)
+# - 配置文件 (requirements.txt)
+# - 项目规范文件 (如用户手册PDF等)
