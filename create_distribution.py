@@ -96,27 +96,36 @@ def create_distribution():
     print("创建NDT结果生成器分发包")
     print("=" * 50)
 
-    # 创建带时间戳的唯一分发目录名
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    # 创建按日期命名的分发目录名
+    timestamp = datetime.now().strftime('%Y%m%d')
     dist_name = f"NDT结果生成器_v1.0_{timestamp}"
     dist_dir = f"分发包/{dist_name}"
-
-    # 检查是否存在同名目录，如果存在则添加序号
-    counter = 1
-    original_dist_name = dist_name
-
-    while os.path.exists(dist_dir):
-        dist_name = f"{original_dist_name}_{counter:02d}"
-        dist_dir = f"分发包/{dist_name}"
-        counter += 1
-        if counter > 99:  # 防止无限循环
-            print("⚠ 警告: 同名目录过多，请手动清理")
-            break
 
     # 创建分发包根目录（如果不存在）
     os.makedirs("分发包", exist_ok=True)
 
-    # 创建具体的分发目录
+    # 如果存在同名目录，先删除（同一天覆盖策略）
+    if os.path.exists(dist_dir):
+        print(f"⚠ 发现同日期分发包，将进行覆盖: {dist_dir}")
+        try:
+            shutil.rmtree(dist_dir)
+            print(f"✓ 已删除旧的分发包目录")
+        except Exception as e:
+            print(f"❌ 删除旧分发包失败: {e}")
+            print("尝试强制删除...")
+            try:
+                # 尝试修改权限后删除
+                import stat
+                def remove_readonly(func, path, _):
+                    os.chmod(path, stat.S_IWRITE)
+                    func(path)
+                shutil.rmtree(dist_dir, onerror=remove_readonly)
+                print(f"✓ 强制删除成功")
+            except Exception as e2:
+                print(f"❌ 强制删除也失败: {e2}")
+                return False
+
+    # 创建新的分发目录
     os.makedirs(dist_dir, exist_ok=True)
     print(f"✓ 创建分发目录: {dist_dir}")
 
@@ -362,6 +371,17 @@ if errorlevel 1 (
     
     # 创建压缩包
     zip_path = f"分发包/{dist_name}.zip"
+
+    # 如果存在同名压缩包，先删除（同一天覆盖策略）
+    if os.path.exists(zip_path):
+        print(f"⚠ 发现同日期压缩包，将进行覆盖: {zip_path}")
+        try:
+            os.remove(zip_path)
+            print(f"✓ 已删除旧的压缩包")
+        except Exception as e:
+            print(f"❌ 删除旧压缩包失败: {e}")
+            return False
+
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(dist_dir):
             for file in files:
