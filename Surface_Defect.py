@@ -577,6 +577,9 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                         elif "焊工号" in cell_text:
                             column_indices["焊工号"] = j
                             header_found = True
+                        elif "检测批号" in cell_text:
+                            column_indices["检测批号"] = j
+                            header_found = True
                         elif "检测结果" in cell_text:
                             column_indices["检测结果"] = j
                             header_found = True
@@ -666,8 +669,17 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     if cell.paragraphs:
                                         cell.paragraphs[0].text = str(welder_numbers[i])
                                         print(f"已更新第{row_idx+1}行焊工号: {welder_numbers[i]}")
-                            
-                            # 5. 填写检测结果（焊口情况）- K列对应检测结果
+
+                            # 5. 填写检测批号 - 填写"/"
+                            if "检测批号" in column_indices:
+                                col_idx = column_indices["检测批号"]
+                                if col_idx < len(row.cells):
+                                    cell = row.cells[col_idx]
+                                    if cell.paragraphs:
+                                        cell.paragraphs[0].text = "/"
+                                        print(f"已更新第{row_idx+1}行检测批号: /")
+
+                            # 6. 填写检测结果（焊口情况）- K列对应检测结果
                             if "检测结果" in column_indices and i < len(weld_conditions):
                                 col_idx = column_indices["检测结果"]
                                 if col_idx < len(row.cells):
@@ -681,7 +693,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                             cell.paragraphs[0].text = str(weld_condition)
                                         print(f"已更新第{row_idx+1}行检测结果: {weld_condition}")
 
-                            # 6. 填写返修张/处数 - L列，空值填"0"
+                            # 7. 填写返修张/处数 - L列，空值填"0"
                             if "返修张/处数" in column_indices and i < len(repair_counts):
                                 col_idx = column_indices["返修张/处数"]
                                 if col_idx < len(row.cells):
@@ -694,7 +706,43 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                         else:
                                             cell.paragraphs[0].text = str(repair_count)
                                         print(f"已更新第{row_idx+1}行返修张/处数: {cell.paragraphs[0].text}")
-            
+
+                    # 在数据填充完成后，在下一行添加"以下空白"字样
+                    if data_count > 0 and data_rows:
+                        # 找到最后一行数据的索引
+                        last_data_row_idx = data_rows[data_count - 1]
+
+                        # 检查是否需要添加新行来放置"以下空白"
+                        next_row_idx = last_data_row_idx + 1
+
+                        if next_row_idx >= len(table.rows):
+                            # 如果没有下一行，添加新行
+                            new_row = table.add_row()
+                            next_row_idx = len(table.rows) - 1
+                            print(f"添加新行用于'以下空白': 第{next_row_idx+1}行")
+
+                        # 在下一行的第一列（通常是单线号列）添加"以下空白"
+                        if "单线号" in column_indices:
+                            col_idx = column_indices["单线号"]
+                            if next_row_idx < len(table.rows) and col_idx < len(table.rows[next_row_idx].cells):
+                                cell = table.rows[next_row_idx].cells[col_idx]
+                                if cell.paragraphs:
+                                    cell.paragraphs[0].text = "以下空白"
+                                    # 设置文本居中对齐
+                                    from docx.enum.text import WD_ALIGN_PARAGRAPH
+                                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                                    print(f"已在第{next_row_idx+1}行单线号列添加'以下空白'并设置居中对齐")
+                        else:
+                            # 如果没有找到单线号列，在第一列添加
+                            if next_row_idx < len(table.rows) and len(table.rows[next_row_idx].cells) > 0:
+                                cell = table.rows[next_row_idx].cells[0]
+                                if cell.paragraphs:
+                                    cell.paragraphs[0].text = "以下空白"
+                                    # 设置文本居中对齐
+                                    from docx.enum.text import WD_ALIGN_PARAGRAPH
+                                    cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                                    print(f"已在第{next_row_idx+1}行第一列添加'以下空白'并设置居中对齐")
+
             # 保存文档
             try:
                 print(f"\n正在保存文档到: {report_output_path}")

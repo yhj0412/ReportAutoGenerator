@@ -247,8 +247,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                     for paragraph in doc.paragraphs:
                         if project_name and "工程名称值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("工程名称值", project_name)
-                            set_paragraph_center_alignment(paragraph)
-                            print(f"已将段落中的'工程名称值'替换为'{project_name}'并设置居中")
+                            # set_paragraph_center_alignment(paragraph)
+                            # print(f"已将段落中的'工程名称值'替换为'{project_name}'并设置居中")
 
                         if client_name and "委托单位值" in paragraph.text:
                             paragraph.text = paragraph.text.replace("委托单位值", client_name)

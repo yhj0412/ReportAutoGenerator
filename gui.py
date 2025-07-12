@@ -162,7 +162,49 @@ class NDTResultGUI:
                            command=lambda idx=i: self.select_module(idx))
             btn.pack(fill=tk.X, pady=3)
             self.module_buttons.append(btn)
-    
+
+        # 添加技术支持信息区域
+        self.create_sidebar_support_info()
+
+    def create_sidebar_support_info(self):
+        """在左侧边栏创建技术支持信息"""
+        # 添加一些垂直间距
+        spacer_frame = ttk.Frame(self.sidebar, style="Sidebar.TFrame", height=20)
+        spacer_frame.pack(fill=tk.X, pady=10)
+
+        # 技术支持信息区域
+        support_frame = ttk.Frame(self.sidebar, style="Sidebar.TFrame")
+        support_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=10, pady=(10, 15))
+
+        # 分隔线
+        separator = ttk.Separator(support_frame, orient='horizontal')
+        separator.pack(fill=tk.X, pady=(0, 10))
+
+        # 技术支持标题
+        support_title = ttk.Label(support_frame, text="📞 技术支持",
+                                font=(self.default_font, 10, "bold"),
+                                foreground="#2c5aa0",
+                                background="#e8e8e8")
+        support_title.pack(anchor=tk.W, pady=(0, 5))
+
+        # 技术支持联系信息
+        support_contact = ttk.Label(support_frame,
+                                  text="如遇到问题，请联系\n1594445261@qq.com\n技术支持",
+                                  font=(self.default_font, 8),
+                                  foreground="#666666",
+                                  background="#e8e8e8",
+                                  justify=tk.LEFT)
+        support_contact.pack(anchor=tk.W, pady=(0, 5))
+
+        # 版权信息
+        copyright_info = ttk.Label(support_frame,
+                                 text="© 2025 NDT结果生成器\n保留所有权利",
+                                 font=(self.default_font, 7),
+                                 foreground="#888888",
+                                 background="#e8e8e8",
+                                 justify=tk.LEFT)
+        copyright_info.pack(anchor=tk.W)
+
     def create_content_area(self):
         """创建右侧内容区"""
         self.content_frame = ttk.Frame(self.main_frame, style="Content.TFrame")
@@ -976,18 +1018,18 @@ class NDTResultGUI:
         """创建状态栏"""
         status_frame = ttk.Frame(self.root)
         status_frame.pack(side=tk.BOTTOM, fill=tk.X)
-        
+
         # 左侧状态信息
         self.status_var = tk.StringVar()
         self.status_var.set("状态: 失败")
-        status_label = ttk.Label(status_frame, textvariable=self.status_var, 
+        status_label = ttk.Label(status_frame, textvariable=self.status_var,
                                relief=tk.SUNKEN, anchor=tk.W)
         status_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
+
         # 右侧处理信息
         self.process_var = tk.StringVar()
         self.process_var.set("0/0 文件已处理")
-        process_label = ttk.Label(status_frame, textvariable=self.process_var, 
+        process_label = ttk.Label(status_frame, textvariable=self.process_var,
                                 relief=tk.SUNKEN, anchor=tk.E)
         process_label.pack(side=tk.RIGHT, padx=(5, 0))
     
