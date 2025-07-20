@@ -12,9 +12,18 @@ import os
 import sys
 import pandas as pd
 from docx import Document
+from docx.shared import Pt
+from docx.oxml.ns import qn
 import argparse
 import re
 from datetime import datetime
+
+def set_kaiti_font(paragraph):
+    """设置段落为楷体五号字体"""
+    for run in paragraph.runs:
+        run.font.name = "楷体"
+        run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+        run.font.size = Pt(10.5)
 
 def update_date_in_cell(cell, year, month, day):
     """更新单元格中的日期"""
@@ -37,8 +46,9 @@ def update_date_in_cell(cell, year, month, day):
             new_text = new_text.replace('日', f'{day}日')
 
             paragraph.text = new_text
+            set_kaiti_font(paragraph)
             date_found = True
-            print("已更新日期")
+            print("已更新日期并设置为楷体五号字体")
             break
 
     # 如果没有找到日期段落，尝试在现有文本后添加日期
@@ -50,7 +60,8 @@ def update_date_in_cell(cell, year, month, day):
             if current_text and not current_text.endswith('：'):
                 current_text += ' '
             cell.paragraphs[0].text = current_text + f"{year}年{month}月{day}日"
-            print(f"已添加日期: {year}年{month}月{day}日")
+            set_kaiti_font(cell.paragraphs[0])
+            print(f"已添加日期: {year}年{month}月{day}日并设置为楷体五号字体")
 
 def process_excel_to_word(excel_path, word_template_path, output_path=None,
                          project_name=None, client_name=None, inspection_unit=None,
@@ -249,25 +260,37 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                             for run in paragraph.runs:
                                 if "工程名称值" in run.text:
                                     run.text = run.text.replace("工程名称值", project_name)
-                            print(f"已将段落中的'工程名称值'替换为'{project_name}'")
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
+                            print(f"已将段落中的'工程名称值'替换为'{project_name}'并设置为楷体五号字体")
 
                         if client_name and "委托单位值" in paragraph.text:
                             for run in paragraph.runs:
                                 if "委托单位值" in run.text:
                                     run.text = run.text.replace("委托单位值", client_name)
-                            print(f"已将段落中的'委托单位值'替换为'{client_name}'")
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
+                            print(f"已将段落中的'委托单位值'替换为'{client_name}'并设置为楷体五号字体")
 
                         if inspection_unit and "检测单位值" in paragraph.text:
                             for run in paragraph.runs:
                                 if "检测单位值" in run.text:
                                     run.text = run.text.replace("检测单位值", inspection_unit)
-                            print(f"已将段落中的'检测单位值'替换为'{inspection_unit}'")
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
+                            print(f"已将段落中的'检测单位值'替换为'{inspection_unit}'并设置为楷体五号字体")
 
                         if inspection_standard and "检测标准值" in paragraph.text:
                             for run in paragraph.runs:
                                 if "检测标准值" in run.text:
                                     run.text = run.text.replace("检测标准值", inspection_standard)
-                            print(f"已将段落中的'检测标准值'替换为'{inspection_standard}'")
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
+                            print(f"已将段落中的'检测标准值'替换为'{inspection_standard}'并设置为楷体五号字体")
 
                     # 2. 遍历表格中的单元格，替换参数值 - 保持原有格式
                     for table in doc.tables:
@@ -278,28 +301,40 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         for run in paragraph.runs:
                                             if "工程名称值" in run.text:
                                                 run.text = run.text.replace("工程名称值", project_name)
-                                    print(f"已将表格中的'工程名称值'替换为'{project_name}'")
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
+                                    print(f"已将表格中的'工程名称值'替换为'{project_name}'并设置为楷体五号字体")
 
                                 if client_name and "委托单位值" in cell.text:
                                     for paragraph in cell.paragraphs:
                                         for run in paragraph.runs:
                                             if "委托单位值" in run.text:
                                                 run.text = run.text.replace("委托单位值", client_name)
-                                    print(f"已将表格中的'委托单位值'替换为'{client_name}'")
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
+                                    print(f"已将表格中的'委托单位值'替换为'{client_name}'并设置为楷体五号字体")
 
                                 if inspection_unit and "检测单位值" in cell.text:
                                     for paragraph in cell.paragraphs:
                                         for run in paragraph.runs:
                                             if "检测单位值" in run.text:
                                                 run.text = run.text.replace("检测单位值", inspection_unit)
-                                    print(f"已将表格中的'检测单位值'替换为'{inspection_unit}'")
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
+                                    print(f"已将表格中的'检测单位值'替换为'{inspection_unit}'并设置为楷体五号字体")
 
                                 if inspection_standard and "检测标准值" in cell.text:
                                     for paragraph in cell.paragraphs:
                                         for run in paragraph.runs:
                                             if "检测标准值" in run.text:
                                                 run.text = run.text.replace("检测标准值", inspection_standard)
-                                    print(f"已将表格中的'检测标准值'替换为'{inspection_standard}'")
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
+                                    print(f"已将表格中的'检测标准值'替换为'{inspection_standard}'并设置为楷体五号字体")
                 
                 # 处理单值替换（合格级别、单元名称、完成日期）
                 print("\n==== 开始处理单值替换 ====")
@@ -339,32 +374,47 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                         for run in paragraph.runs:
                             if "合格级别值" in run.text:
                                 run.text = run.text.replace("合格级别值", qualification_level)
-                        print(f"已将'合格级别值'替换为'{qualification_level}'")
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                        print(f"已将'合格级别值'替换为'{qualification_level}'并设置为楷体五号字体")
 
                     if "单元名称值" in paragraph.text and unit_name:
                         for run in paragraph.runs:
                             if "单元名称值" in run.text:
                                 run.text = run.text.replace("单元名称值", unit_name)
-                        print(f"已将'单元名称值'替换为'{unit_name}'")
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                        print(f"已将'单元名称值'替换为'{unit_name}'并设置为楷体五号字体")
 
                     if "检测方法值" in paragraph.text and detection_method:
                         for run in paragraph.runs:
                             if "检测方法值" in run.text:
                                 run.text = run.text.replace("检测方法值", detection_method)
-                        print(f"已将'检测方法值'替换为'{detection_method}'")
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                        print(f"已将'检测方法值'替换为'{detection_method}'并设置为楷体五号字体")
 
                     if "委托单编号值" in paragraph.text and order_number_value:
                         for run in paragraph.runs:
                             if "委托单编号值" in run.text:
                                 run.text = run.text.replace("委托单编号值", order_number_value)
-                        print(f"已将'委托单编号值'替换为'{order_number_value}'")
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                        print(f"已将'委托单编号值'替换为'{order_number_value}'并设置为楷体五号字体")
 
                     if "完成日期值" in paragraph.text:
                         completion_date_str = f"{year}年{month}月{day}日"
                         for run in paragraph.runs:
                             if "完成日期值" in run.text:
                                 run.text = run.text.replace("完成日期值", completion_date_str)
-                        print(f"已将'完成日期值'替换为'{completion_date_str}'")
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                        print(f"已将'完成日期值'替换为'{completion_date_str}'并设置为楷体五号字体")
 
                 # 处理表格中的单值替换 - 保持原有格式
                 for table in doc.tables:
@@ -376,28 +426,40 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                     for run in paragraph.runs:
                                         if "合格级别值" in run.text:
                                             run.text = run.text.replace("合格级别值", qualification_level)
-                                print(f"已将表格中的'合格级别值'替换为'{qualification_level}'")
+                                            run.font.name = "楷体"
+                                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                            run.font.size = Pt(10.5)
+                                print(f"已将表格中的'合格级别值'替换为'{qualification_level}'并设置为楷体五号字体")
 
                             if "单元名称值" in cell.text and unit_name:
                                 for paragraph in cell.paragraphs:
                                     for run in paragraph.runs:
                                         if "单元名称值" in run.text:
                                             run.text = run.text.replace("单元名称值", unit_name)
-                                print(f"已将表格中的'单元名称值'替换为'{unit_name}'")
+                                            run.font.name = "楷体"
+                                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                            run.font.size = Pt(10.5)
+                                print(f"已将表格中的'单元名称值'替换为'{unit_name}'并设置为楷体五号字体")
 
                             if "检测方法值" in cell.text and detection_method:
                                 for paragraph in cell.paragraphs:
                                     for run in paragraph.runs:
                                         if "检测方法值" in run.text:
                                             run.text = run.text.replace("检测方法值", detection_method)
-                                print(f"已将表格中的'检测方法值'替换为'{detection_method}'")
+                                            run.font.name = "楷体"
+                                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                            run.font.size = Pt(10.5)
+                                print(f"已将表格中的'检测方法值'替换为'{detection_method}'并设置为楷体五号字体")
 
                             if "委托单号编号值" in cell.text and order_number_value:
                                 for paragraph in cell.paragraphs:
                                     for run in paragraph.runs:
                                         if "委托单号编号值" in run.text:
                                             run.text = run.text.replace("委托单号编号值", order_number_value)
-                                print(f"已将表格中的'委托单号编号值'替换为'{order_number_value}'")
+                                            run.font.name = "楷体"
+                                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                            run.font.size = Pt(10.5)
+                                print(f"已将表格中的'委托单号编号值'替换为'{order_number_value}'并设置为楷体五号字体")
 
                             if "完成日期值" in cell.text:
                                 completion_date_str = f"{year}年{month}月{day}日"
@@ -405,7 +467,10 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                     for run in paragraph.runs:
                                         if "完成日期值" in run.text:
                                             run.text = run.text.replace("完成日期值", completion_date_str)
-                                print(f"已将表格中的'完成日期值'替换为'{completion_date_str}'")
+                                            run.font.name = "楷体"
+                                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                            run.font.size = Pt(10.5)
+                                print(f"已将表格中的'完成日期值'替换为'{completion_date_str}'并设置为楷体五号字体")
 
                 # 处理日期填入（施工单位、监理单位、项目部/装置、检测单位）
                 print("\n==== 开始处理日期填入 ====")
@@ -571,6 +636,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
                                                 cell.paragraphs[0].text = pipe_numbers[i]
+                                                set_kaiti_font(cell.paragraphs[0])
                                                 print(f"已更新第{row_idx+1}行检件编号: {pipe_numbers[i]}")
 
                                     # 2. 焊口编号 (第2列)
@@ -580,6 +646,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
                                                 cell.paragraphs[0].text = weld_numbers[i]
+                                                set_kaiti_font(cell.paragraphs[0])
                                                 print(f"已更新第{row_idx+1}行焊口编号: {weld_numbers[i]}")
 
                                     # 3. 材质 (第3列)
@@ -589,6 +656,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
                                                 cell.paragraphs[0].text = materials[i]
+                                                set_kaiti_font(cell.paragraphs[0])
                                                 print(f"已更新第{row_idx+1}行材质: {materials[i]}")
 
                                     # 4. 规格 (第4列)
@@ -598,6 +666,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
                                                 cell.paragraphs[0].text = specifications[i]
+                                                set_kaiti_font(cell.paragraphs[0])
                                                 print(f"已更新第{row_idx+1}行规格: {specifications[i]}")
 
                                     # 5. 检测数量 (第5列)
@@ -607,6 +676,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
                                                 cell.paragraphs[0].text = detection_quantities[i]
+                                                set_kaiti_font(cell.paragraphs[0])
                                                 print(f"已更新第{row_idx+1}行检测数量: {detection_quantities[i]}")
 
                                     # 6. 检测结果/合格 (第6列) - 填入焊口情况
@@ -624,6 +694,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                             cell = row.cells[result_col_idx]
                                             if cell.paragraphs:
                                                 cell.paragraphs[0].text = weld_conditions[i]
+                                                set_kaiti_font(cell.paragraphs[0])
                                                 print(f"已更新第{row_idx+1}行检测结果: {weld_conditions[i]}")
                             else:
                                 print(f"警告: 表格行数不足，无法填充第{i+1}条数据")
@@ -662,6 +733,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         cell = row.cells[0]
                                         if cell.paragraphs:
                                             cell.paragraphs[0].text = pipe_numbers[i]
+                                            set_kaiti_font(cell.paragraphs[0])
                                             print(f"备用方案：已更新第{row_idx+1}行检件编号: {pipe_numbers[i]}")
 
                                     # 2. 焊口编号
@@ -669,6 +741,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         cell = row.cells[1]
                                         if cell.paragraphs:
                                             cell.paragraphs[0].text = weld_numbers[i]
+                                            set_kaiti_font(cell.paragraphs[0])
                                             print(f"备用方案：已更新第{row_idx+1}行焊口编号: {weld_numbers[i]}")
 
                                     # 3. 材质
@@ -676,6 +749,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         cell = row.cells[2]
                                         if cell.paragraphs:
                                             cell.paragraphs[0].text = materials[i]
+                                            set_kaiti_font(cell.paragraphs[0])
                                             print(f"备用方案：已更新第{row_idx+1}行材质: {materials[i]}")
 
                                     # 4. 规格
@@ -683,6 +757,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         cell = row.cells[3]
                                         if cell.paragraphs:
                                             cell.paragraphs[0].text = specifications[i]
+                                            set_kaiti_font(cell.paragraphs[0])
                                             print(f"备用方案：已更新第{row_idx+1}行规格: {specifications[i]}")
 
                                     # 5. 检测数量
@@ -690,6 +765,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         cell = row.cells[4]
                                         if cell.paragraphs:
                                             cell.paragraphs[0].text = detection_quantities[i]
+                                            set_kaiti_font(cell.paragraphs[0])
                                             print(f"备用方案：已更新第{row_idx+1}行检测数量: {detection_quantities[i]}")
 
                                     # 6. 合格（检测结果）
@@ -697,6 +773,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         cell = row.cells[5]
                                         if cell.paragraphs:
                                             cell.paragraphs[0].text = weld_conditions[i]
+                                            set_kaiti_font(cell.paragraphs[0])
                                             print(f"备用方案：已更新第{row_idx+1}行检测结果: {weld_conditions[i]}")
                                 else:
                                     print(f"备用方案：警告: 表格行数不足，无法填充第{i+1}条数据")

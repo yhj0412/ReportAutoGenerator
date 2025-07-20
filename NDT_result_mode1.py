@@ -12,6 +12,8 @@ import os
 import sys
 import pandas as pd
 from docx import Document
+from docx.shared import Pt
+from docx.oxml.ns import qn
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import argparse
 import re
@@ -26,6 +28,37 @@ def set_paragraph_center_alignment(paragraph):
     """设置段落文本居中对齐"""
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
+def replace_text_in_paragraph(paragraph, old_text, new_text):
+    """在段落中精确替换文本，只对替换的部分设置楷体五号字体
+
+    Args:
+        paragraph: Word段落对象
+        old_text: 要替换的文本
+        new_text: 新文本
+    """
+    # 获取段落的完整文本
+    full_text = paragraph.text
+
+    if old_text in full_text:
+        # 清空段落
+        paragraph.clear()
+
+        # 分割文本
+        parts = full_text.split(old_text)
+
+        # 重新构建段落
+        for i, part in enumerate(parts):
+            if i > 0:
+                # 添加替换的文本（设置楷体五号字体）
+                run = paragraph.add_run(new_text)
+                run.font.name = "楷体"
+                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                run.font.size = Pt(10.5)
+
+            if part:
+                # 添加原始文本部分（保持原有格式）
+                paragraph.add_run(part)
+
 def update_date_in_cell(cell, year, month, day):
     """更新单元格中的日期"""
     # 检查单元格中的所有段落
@@ -34,22 +67,41 @@ def update_date_in_cell(cell, year, month, day):
         if "年" in paragraph.text and "月" in paragraph.text and "日" in paragraph.text:
             print(f"找到日期段落: {paragraph.text}")
 
-            # 创建新的文本，确保只有一个年月日
-            new_text = paragraph.text
-            # 确保年月日前没有数字
-            new_text = re.sub(r'\d*年', '年', new_text)
-            new_text = re.sub(r'\d*月', '月', new_text)
-            new_text = re.sub(r'\d*日', '日', new_text)
+            original_text = paragraph.text
+            new_date = f'{year}年{month}月{day}日'
 
-            # 在年月日前插入正确的数字
-            new_text = new_text.replace('年', f'{year}年')
-            new_text = new_text.replace('月', f'{month}月')
-            new_text = new_text.replace('日', f'{day}日')
+            # 查找日期部分的模式 - 匹配各种日期格式
+            date_pattern = r'(\d+年\d+月\d+日|年\s*月\s*日\.?|年月日\.?)'
 
-            paragraph.text = new_text
-            date_found = True
-            print("已更新日期")
-            break
+            if re.search(date_pattern, original_text):
+                # 清空段落
+                paragraph.clear()
+
+                # 使用正则表达式替换，同时保持格式
+                current_pos = 0
+
+                for match in re.finditer(date_pattern, original_text):
+                    # 添加匹配前的文本（标签部分），保持原有格式
+                    before_text = original_text[current_pos:match.start()]
+                    if before_text:
+                        paragraph.add_run(before_text)
+
+                    # 添加日期部分，设置楷体五号字体
+                    date_run = paragraph.add_run(new_date)
+                    date_run.font.name = "楷体"
+                    date_run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                    date_run.font.size = Pt(10.5)
+
+                    current_pos = match.end()
+
+                # 添加剩余的文本（如果有的话）
+                remaining_text = original_text[current_pos:]
+                if remaining_text:
+                    paragraph.add_run(remaining_text)
+
+                date_found = True
+                print("已更新日期并设置为楷体五号字体")
+                break
 
     # 如果没有找到日期段落，尝试在现有文本后添加日期
     if not date_found:
@@ -59,8 +111,21 @@ def update_date_in_cell(cell, year, month, day):
             current_text = cell.paragraphs[0].text
             if current_text and not current_text.endswith('：'):
                 current_text += ' '
-            cell.paragraphs[0].text = current_text + f"{year}年{month}月{day}日"
-            print(f"已添加日期: {year}年{month}月{day}日")
+
+            # 清空段落并重新构建
+            paragraph = cell.paragraphs[0]
+            paragraph.clear()
+
+            # 添加原有文本
+            if current_text:
+                paragraph.add_run(current_text)
+
+            # 添加日期，设置楷体五号字体
+            date_run = paragraph.add_run(f"{year}年{month}月{day}日")
+            date_run.font.name = "楷体"
+            date_run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+            date_run.font.size = Pt(10.5)
+            print(f"已添加日期: {year}年{month}月{day}日并设置为楷体五号字体")
 
 def process_excel_to_word(excel_path, word_template_path, output_path=None, 
                          project_name=None, client_name=None, inspection_unit=None, 
@@ -246,58 +311,207 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                     # 1. 遍历段落
                     for paragraph in doc.paragraphs:
                         if project_name and "工程名称值" in paragraph.text:
-                            paragraph.text = paragraph.text.replace("工程名称值", project_name)
-                            # set_paragraph_center_alignment(paragraph)
-                            # print(f"已将段落中的'工程名称值'替换为'{project_name}'并设置居中")
+                            # 保存原始文本
+                            original_text = paragraph.text
+                            # 只有当段落文本完全等于占位符时，才替换整个段落
+                            if original_text.strip() == "工程名称值":
+                                # 清空段落内容并重新添加
+                                paragraph.clear()
+                                run = paragraph.add_run(project_name)
+                                # 设置楷体五号字体
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                                print(f"已将段落中的'工程名称值'替换为'{project_name}'并设置为楷体五号字体")
+                            else:
+                                # 如果段落包含其他内容，需要精确替换
+                                replace_text_in_paragraph(paragraph, "工程名称值", project_name)
+                                print(f"已将段落中的'工程名称值'替换为'{project_name}'并设置为楷体五号字体")
 
                         if client_name and "委托单位值" in paragraph.text:
-                            paragraph.text = paragraph.text.replace("委托单位值", client_name)
-                            set_paragraph_center_alignment(paragraph)
-                            print(f"已将段落中的'委托单位值'替换为'{client_name}'并设置居中")
+                            # 保存原始文本
+                            original_text = paragraph.text
+                            # 只有当段落文本完全等于占位符时，才替换整个段落
+                            if original_text.strip() == "委托单位值":
+                                # 清空段落内容并重新添加
+                                paragraph.clear()
+                                run = paragraph.add_run(client_name)
+                                # 设置楷体五号字体
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                                set_paragraph_center_alignment(paragraph)
+                                print(f"已将段落中的'委托单位值'替换为'{client_name}'并设置为楷体五号字体和居中")
+                            else:
+                                # 如果段落包含其他内容，需要精确替换
+                                replace_text_in_paragraph(paragraph, "委托单位值", client_name)
+                                set_paragraph_center_alignment(paragraph)
+                                print(f"已将段落中的'委托单位值'替换为'{client_name}'并设置为楷体五号字体和居中")
 
                         if inspection_unit and "检测单位值" in paragraph.text:
-                            paragraph.text = paragraph.text.replace("检测单位值", inspection_unit)
-                            set_paragraph_center_alignment(paragraph)
-                            print(f"已将段落中的'检测单位值'替换为'{inspection_unit}'并设置居中")
+                            # 保存原始文本
+                            original_text = paragraph.text
+                            # 只有当段落文本完全等于占位符时，才替换整个段落
+                            if original_text.strip() == "检测单位值":
+                                # 清空段落内容并重新添加
+                                paragraph.clear()
+                                run = paragraph.add_run(inspection_unit)
+                                # 设置楷体五号字体
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                                set_paragraph_center_alignment(paragraph)
+                                print(f"已将段落中的'检测单位值'替换为'{inspection_unit}'并设置为楷体五号字体和居中")
+                            else:
+                                # 如果段落包含其他内容，需要精确替换
+                                replace_text_in_paragraph(paragraph, "检测单位值", inspection_unit)
+                                set_paragraph_center_alignment(paragraph)
+                                print(f"已将段落中的'检测单位值'替换为'{inspection_unit}'并设置为楷体五号字体和居中")
 
                         if inspection_standard and "检测标准值" in paragraph.text:
-                            paragraph.text = paragraph.text.replace("检测标准值", inspection_standard)
-                            set_paragraph_center_alignment(paragraph)
-                            print(f"已将段落中的'检测标准值'替换为'{inspection_standard}'并设置居中")
+                            # 保存原始文本
+                            original_text = paragraph.text
+                            # 只有当段落文本完全等于占位符时，才替换整个段落
+                            if original_text.strip() == "检测标准值":
+                                # 清空段落内容并重新添加
+                                paragraph.clear()
+                                run = paragraph.add_run(inspection_standard)
+                                # 设置楷体五号字体
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                                set_paragraph_center_alignment(paragraph)
+                                print(f"已将段落中的'检测标准值'替换为'{inspection_standard}'并设置为楷体五号字体和居中")
+                            else:
+                                # 如果段落包含其他内容，需要精确替换
+                                replace_text_in_paragraph(paragraph, "检测标准值", inspection_standard)
+                                set_paragraph_center_alignment(paragraph)
+                                print(f"已将段落中的'检测标准值'替换为'{inspection_standard}'并设置为楷体五号字体和居中")
 
                         if inspection_method and "检测方法值" in paragraph.text:
-                            paragraph.text = paragraph.text.replace("检测方法值", inspection_method)
-                            set_paragraph_center_alignment(paragraph)
-                            print(f"已将段落中的'检测方法值'替换为'{inspection_method}'并设置居中")
+                            # 保存原始文本
+                            original_text = paragraph.text
+                            # 只有当段落文本完全等于占位符时，才替换整个段落
+                            if original_text.strip() == "检测方法值":
+                                # 清空段落内容并重新添加
+                                paragraph.clear()
+                                run = paragraph.add_run(inspection_method)
+                                # 设置楷体五号字体
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                                set_paragraph_center_alignment(paragraph)
+                                print(f"已将段落中的'检测方法值'替换为'{inspection_method}'并设置为楷体五号字体和居中")
+                            else:
+                                # 如果段落包含其他内容，需要精确替换
+                                replace_text_in_paragraph(paragraph, "检测方法值", inspection_method)
+                                set_paragraph_center_alignment(paragraph)
+                                print(f"已将段落中的'检测方法值'替换为'{inspection_method}'并设置为楷体五号字体和居中")
 
                     # 2. 遍历表格中的单元格，替换参数值
                     for table in doc.tables:
                         for row in table.rows:
                             for cell in row.cells:
-                                if project_name and "工程名称值" in cell.text:
-                                    cell.text = cell.text.replace("工程名称值", project_name)
-                                    set_cell_center_alignment(cell)
-                                    print(f"已将表格中的'工程名称值'替换为'{project_name}'并设置居中")
+                                for paragraph in cell.paragraphs:
+                                    if project_name and "工程名称值" in paragraph.text:
+                                        # 保存原始文本
+                                        original_text = paragraph.text
+                                        # 只有当段落文本完全等于占位符时，才替换整个段落
+                                        if original_text.strip() == "工程名称值":
+                                            # 清空段落内容并重新添加
+                                            paragraph.clear()
+                                            run = paragraph.add_run(project_name)
+                                            # 设置楷体五号字体
+                                            run.font.name = "楷体"
+                                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                            run.font.size = Pt(10.5)
+                                            set_cell_center_alignment(cell)
+                                            print(f"已将表格中的'工程名称值'替换为'{project_name}'并设置为楷体五号字体和居中")
+                                        else:
+                                            # 如果段落包含其他内容，需要精确替换
+                                            replace_text_in_paragraph(paragraph, "工程名称值", project_name)
+                                            set_cell_center_alignment(cell)
+                                            print(f"已将表格中的'工程名称值'替换为'{project_name}'并设置为楷体五号字体和居中")
 
-                                if client_name and "委托单位值" in cell.text:
-                                    cell.text = cell.text.replace("委托单位值", client_name)
-                                    set_cell_center_alignment(cell)
-                                    print(f"已将表格中的'委托单位值'替换为'{client_name}'并设置居中")
+                                    if client_name and "委托单位值" in paragraph.text:
+                                        # 保存原始文本
+                                        original_text = paragraph.text
+                                        # 只有当段落文本完全等于占位符时，才替换整个段落
+                                        if original_text.strip() == "委托单位值":
+                                            # 清空段落内容并重新添加
+                                            paragraph.clear()
+                                            run = paragraph.add_run(client_name)
+                                            # 设置楷体五号字体
+                                            run.font.name = "楷体"
+                                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                            run.font.size = Pt(10.5)
+                                            set_cell_center_alignment(cell)
+                                            print(f"已将表格中的'委托单位值'替换为'{client_name}'并设置为楷体五号字体和居中")
+                                        else:
+                                            # 如果段落包含其他内容，需要精确替换
+                                            replace_text_in_paragraph(paragraph, "委托单位值", client_name)
+                                            set_cell_center_alignment(cell)
+                                            print(f"已将表格中的'委托单位值'替换为'{client_name}'并设置为楷体五号字体和居中")
 
-                                if inspection_unit and "检测单位值" in cell.text:
-                                    cell.text = cell.text.replace("检测单位值", inspection_unit)
-                                    set_cell_center_alignment(cell)
-                                    print(f"已将表格中的'检测单位值'替换为'{inspection_unit}'并设置居中")
+                                    if inspection_unit and "检测单位值" in paragraph.text:
+                                        # 保存原始文本
+                                        original_text = paragraph.text
+                                        # 只有当段落文本完全等于占位符时，才替换整个段落
+                                        if original_text.strip() == "检测单位值":
+                                            # 清空段落内容并重新添加
+                                            paragraph.clear()
+                                            run = paragraph.add_run(inspection_unit)
+                                            # 设置楷体五号字体
+                                            run.font.name = "楷体"
+                                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                            run.font.size = Pt(10.5)
+                                            set_cell_center_alignment(cell)
+                                            print(f"已将表格中的'检测单位值'替换为'{inspection_unit}'并设置为楷体五号字体和居中")
+                                        else:
+                                            # 如果段落包含其他内容，需要精确替换
+                                            replace_text_in_paragraph(paragraph, "检测单位值", inspection_unit)
+                                            set_cell_center_alignment(cell)
+                                            print(f"已将表格中的'检测单位值'替换为'{inspection_unit}'并设置为楷体五号字体和居中")
 
-                                if inspection_standard and "检测标准值" in cell.text:
-                                    cell.text = cell.text.replace("检测标准值", inspection_standard)
-                                    set_cell_center_alignment(cell)
-                                    print(f"已将表格中的'检测标准值'替换为'{inspection_standard}'并设置居中")
+                                    if inspection_standard and "检测标准值" in paragraph.text:
+                                        # 保存原始文本
+                                        original_text = paragraph.text
+                                        # 只有当段落文本完全等于占位符时，才替换整个段落
+                                        if original_text.strip() == "检测标准值":
+                                            # 清空段落内容并重新添加
+                                            paragraph.clear()
+                                            run = paragraph.add_run(inspection_standard)
+                                            # 设置楷体五号字体
+                                            run.font.name = "楷体"
+                                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                            run.font.size = Pt(10.5)
+                                            set_cell_center_alignment(cell)
+                                            print(f"已将表格中的'检测标准值'替换为'{inspection_standard}'并设置为楷体五号字体和居中")
+                                        else:
+                                            # 如果段落包含其他内容，需要精确替换
+                                            replace_text_in_paragraph(paragraph, "检测标准值", inspection_standard)
+                                            set_cell_center_alignment(cell)
+                                            print(f"已将表格中的'检测标准值'替换为'{inspection_standard}'并设置为楷体五号字体和居中")
 
-                                if inspection_method and "检测方法值" in cell.text:
-                                    cell.text = cell.text.replace("检测方法值", inspection_method)
-                                    set_cell_center_alignment(cell)
-                                    print(f"已将表格中的'检测方法值'替换为'{inspection_method}'并设置居中")
+                                    if inspection_method and "检测方法值" in paragraph.text:
+                                        # 保存原始文本
+                                        original_text = paragraph.text
+                                        # 只有当段落文本完全等于占位符时，才替换整个段落
+                                        if original_text.strip() == "检测方法值":
+                                            # 清空段落内容并重新添加
+                                            paragraph.clear()
+                                            run = paragraph.add_run(inspection_method)
+                                            # 设置楷体五号字体
+                                            run.font.name = "楷体"
+                                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                            run.font.size = Pt(10.5)
+                                            set_cell_center_alignment(cell)
+                                            print(f"已将表格中的'检测方法值'替换为'{inspection_method}'并设置为楷体五号字体和居中")
+                                        else:
+                                            # 如果段落包含其他内容，需要精确替换
+                                            replace_text_in_paragraph(paragraph, "检测方法值", inspection_method)
+                                            set_cell_center_alignment(cell)
+                                            print(f"已将表格中的'检测方法值'替换为'{inspection_method}'并设置为楷体五号字体和居中")
                 
                 # 处理单值替换（合格级别、单元名称、完成日期）
                 print("\n==== 开始处理单值替换 ====")
@@ -325,48 +539,167 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                 # 在文档中替换这些值
                 for paragraph in doc.paragraphs:
                     if "合格级别值" in paragraph.text and qualification_level:
-                        paragraph.text = paragraph.text.replace("合格级别值", qualification_level)
-                        set_paragraph_center_alignment(paragraph)
-                        print(f"已将'合格级别值'替换为'{qualification_level}'并设置居中")
+                        # 保存原始文本
+                        original_text = paragraph.text
+                        # 只有当段落文本完全等于占位符时，才替换整个段落
+                        if original_text.strip() == "合格级别值":
+                            # 清空段落内容并重新添加
+                            paragraph.clear()
+                            run = paragraph.add_run(qualification_level)
+                            # 设置楷体五号字体
+                            run.font.name = "楷体"
+                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                            run.font.size = Pt(10.5)
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将'合格级别值'替换为'{qualification_level}'并设置为楷体五号字体和居中")
+                        else:
+                            # 如果段落包含其他内容，需要精确替换
+                            replace_text_in_paragraph(paragraph, "合格级别值", qualification_level)
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将'合格级别值'替换为'{qualification_level}'并设置为楷体五号字体和居中")
 
                     if "单元名称值" in paragraph.text and unit_name:
-                        paragraph.text = paragraph.text.replace("单元名称值", unit_name)
-                        print(f"已将'单元名称值'替换为'{unit_name}'")
+                        # 保存原始文本
+                        original_text = paragraph.text
+                        # 只有当段落文本完全等于占位符时，才替换整个段落
+                        if original_text.strip() == "单元名称值":
+                            # 清空段落内容并重新添加
+                            paragraph.clear()
+                            run = paragraph.add_run(unit_name)
+                            # 设置楷体五号字体
+                            run.font.name = "楷体"
+                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                            run.font.size = Pt(10.5)
+                            print(f"已将'单元名称值'替换为'{unit_name}'并设置为楷体五号字体")
+                        else:
+                            # 如果段落包含其他内容，需要精确替换
+                            replace_text_in_paragraph(paragraph, "单元名称值", unit_name)
+                            print(f"已将'单元名称值'替换为'{unit_name}'并设置为楷体五号字体")
 
                     if "委托单编号值" in paragraph.text and order_number_value:
-                        paragraph.text = paragraph.text.replace("委托单编号值", order_number_value)
-                        set_paragraph_center_alignment(paragraph)
-                        print(f"已将'委托单编号值'替换为'{order_number_value}'并设置居中")
+                        # 保存原始文本
+                        original_text = paragraph.text
+                        # 只有当段落文本完全等于占位符时，才替换整个段落
+                        if original_text.strip() == "委托单编号值":
+                            # 清空段落内容并重新添加
+                            paragraph.clear()
+                            run = paragraph.add_run(order_number_value)
+                            # 设置楷体五号字体
+                            run.font.name = "楷体"
+                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                            run.font.size = Pt(10.5)
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将'委托单编号值'替换为'{order_number_value}'并设置为楷体五号字体和居中")
+                        else:
+                            # 如果段落包含其他内容，需要精确替换
+                            replace_text_in_paragraph(paragraph, "委托单编号值", order_number_value)
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将'委托单编号值'替换为'{order_number_value}'并设置为楷体五号字体和居中")
 
                     if "完成日期值" in paragraph.text:
                         completion_date_str = f"{year}年{month}月{day}日"
-                        paragraph.text = paragraph.text.replace("完成日期值", completion_date_str)
-                        set_paragraph_center_alignment(paragraph)
-                        print(f"已将'完成日期值'替换为'{completion_date_str}'并设置居中")
+                        # 保存原始文本
+                        original_text = paragraph.text
+                        # 只有当段落文本完全等于占位符时，才替换整个段落
+                        if original_text.strip() == "完成日期值":
+                            # 清空段落内容并重新添加
+                            paragraph.clear()
+                            run = paragraph.add_run(completion_date_str)
+                            # 设置楷体五号字体
+                            run.font.name = "楷体"
+                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                            run.font.size = Pt(10.5)
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将'完成日期值'替换为'{completion_date_str}'并设置为楷体五号字体和居中")
+                        else:
+                            # 如果段落包含其他内容，需要精确替换
+                            replace_text_in_paragraph(paragraph, "完成日期值", completion_date_str)
+                            set_paragraph_center_alignment(paragraph)
+                            print(f"已将'完成日期值'替换为'{completion_date_str}'并设置为楷体五号字体和居中")
 
                 # 处理表格中的单值替换
                 for table in doc.tables:
                     for row in table.rows:
                         for cell in row.cells:
-                            if "合格级别值" in cell.text and qualification_level:
-                                cell.text = cell.text.replace("合格级别值", qualification_level)
-                                set_cell_center_alignment(cell)
-                                print(f"已将表格中的'合格级别值'替换为'{qualification_level}'并设置居中")
+                            for paragraph in cell.paragraphs:
+                                if "合格级别值" in paragraph.text and qualification_level:
+                                    # 保存原始文本
+                                    original_text = paragraph.text
+                                    # 只有当段落文本完全等于占位符时，才替换整个段落
+                                    if original_text.strip() == "合格级别值":
+                                        # 清空段落内容并重新添加
+                                        paragraph.clear()
+                                        run = paragraph.add_run(qualification_level)
+                                        # 设置楷体五号字体
+                                        run.font.name = "楷体"
+                                        run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                        run.font.size = Pt(10.5)
+                                        set_cell_center_alignment(cell)
+                                        print(f"已将表格中的'合格级别值'替换为'{qualification_level}'并设置为楷体五号字体和居中")
+                                    else:
+                                        # 如果段落包含其他内容，需要精确替换
+                                        replace_text_in_paragraph(paragraph, "合格级别值", qualification_level)
+                                        set_cell_center_alignment(cell)
+                                        print(f"已将表格中的'合格级别值'替换为'{qualification_level}'并设置为楷体五号字体和居中")
 
-                            if "单元名称值" in cell.text and unit_name:
-                                cell.text = cell.text.replace("单元名称值", unit_name)
-                                print(f"已将表格中的'单元名称值'替换为'{unit_name}'")
+                                if "单元名称值" in paragraph.text and unit_name:
+                                    # 保存原始文本
+                                    original_text = paragraph.text
+                                    # 只有当段落文本完全等于占位符时，才替换整个段落
+                                    if original_text.strip() == "单元名称值":
+                                        # 清空段落内容并重新添加
+                                        paragraph.clear()
+                                        run = paragraph.add_run(unit_name)
+                                        # 设置楷体五号字体
+                                        run.font.name = "楷体"
+                                        run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                        run.font.size = Pt(10.5)
+                                        print(f"已将表格中的'单元名称值'替换为'{unit_name}'并设置为楷体五号字体")
+                                    else:
+                                        # 如果段落包含其他内容，需要精确替换
+                                        replace_text_in_paragraph(paragraph, "单元名称值", unit_name)
+                                        print(f"已将表格中的'单元名称值'替换为'{unit_name}'并设置为楷体五号字体")
 
-                            if "委托单编号值" in cell.text and order_number_value:
-                                cell.text = cell.text.replace("委托单编号值", order_number_value)
-                                set_cell_center_alignment(cell)
-                                print(f"已将表格中的'委托单编号值'替换为'{order_number_value}'并设置居中")
+                                if "委托单编号值" in paragraph.text and order_number_value:
+                                    # 保存原始文本
+                                    original_text = paragraph.text
+                                    # 只有当段落文本完全等于占位符时，才替换整个段落
+                                    if original_text.strip() == "委托单编号值":
+                                        # 清空段落内容并重新添加
+                                        paragraph.clear()
+                                        run = paragraph.add_run(order_number_value)
+                                        # 设置楷体五号字体
+                                        run.font.name = "楷体"
+                                        run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                        run.font.size = Pt(10.5)
+                                        set_cell_center_alignment(cell)
+                                        print(f"已将表格中的'委托单编号值'替换为'{order_number_value}'并设置为楷体五号字体和居中")
+                                    else:
+                                        # 如果段落包含其他内容，需要精确替换
+                                        replace_text_in_paragraph(paragraph, "委托单编号值", order_number_value)
+                                        set_cell_center_alignment(cell)
+                                        print(f"已将表格中的'委托单编号值'替换为'{order_number_value}'并设置为楷体五号字体和居中")
 
-                            if "完成日期值" in cell.text:
-                                completion_date_str = f"{year}年{month}月{day}日"
-                                cell.text = cell.text.replace("完成日期值", completion_date_str)
-                                set_cell_center_alignment(cell)
-                                print(f"已将表格中的'完成日期值'替换为'{completion_date_str}'并设置居中")
+                                if "完成日期值" in paragraph.text:
+                                    completion_date_str = f"{year}年{month}月{day}日"
+                                    # 保存原始文本
+                                    original_text = paragraph.text
+                                    # 只有当段落文本完全等于占位符时，才替换整个段落
+                                    if original_text.strip() == "完成日期值":
+                                        # 清空段落内容并重新添加
+                                        paragraph.clear()
+                                        run = paragraph.add_run(completion_date_str)
+                                        # 设置楷体五号字体
+                                        run.font.name = "楷体"
+                                        run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                        run.font.size = Pt(10.5)
+                                        set_cell_center_alignment(cell)
+                                        print(f"已将表格中的'完成日期值'替换为'{completion_date_str}'并设置为楷体五号字体和居中")
+                                    else:
+                                        # 如果段落包含其他内容，需要精确替换
+                                        replace_text_in_paragraph(paragraph, "完成日期值", completion_date_str)
+                                        set_cell_center_alignment(cell)
+                                        print(f"已将表格中的'完成日期值'替换为'{completion_date_str}'并设置为楷体五号字体和居中")
 
                 # 处理日期填入（施工单位、监理单位、项目部/装置、检测单位）
                 print("\n==== 开始处理日期填入 ====")
@@ -541,7 +874,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         if col_idx < len(row.cells):
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
-                                                cell.paragraphs[0].text = pipe_numbers[i]
+                                                paragraph = cell.paragraphs[0]
+                                                paragraph.clear()
+                                                run = paragraph.add_run(pipe_numbers[i])
+                                                # 设置楷体五号字体
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
                                                 print(f"已更新第{row_idx+1}行管线/检件编号: {pipe_numbers[i]}")
 
                                     if "焊口编号" in column_indices and i < len(weld_numbers):
@@ -549,7 +888,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         if col_idx < len(row.cells):
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
-                                                cell.paragraphs[0].text = weld_numbers[i]
+                                                paragraph = cell.paragraphs[0]
+                                                paragraph.clear()
+                                                run = paragraph.add_run(weld_numbers[i])
+                                                # 设置楷体五号字体
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
                                                 print(f"已更新第{row_idx+1}行焊口编号: {weld_numbers[i]}")
 
                                     if "材质" in column_indices and i < len(materials):
@@ -557,7 +902,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         if col_idx < len(row.cells):
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
-                                                cell.paragraphs[0].text = materials[i]
+                                                paragraph = cell.paragraphs[0]
+                                                paragraph.clear()
+                                                run = paragraph.add_run(materials[i])
+                                                # 设置楷体五号字体
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
                                                 print(f"已更新第{row_idx+1}行材质: {materials[i]}")
 
                                     if "规格" in column_indices and i < len(specifications):
@@ -565,7 +916,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         if col_idx < len(row.cells):
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
-                                                cell.paragraphs[0].text = specifications[i]
+                                                paragraph = cell.paragraphs[0]
+                                                paragraph.clear()
+                                                run = paragraph.add_run(specifications[i])
+                                                # 设置楷体五号字体
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
                                                 print(f"已更新第{row_idx+1}行规格: {specifications[i]}")
 
                                     if "底片规格/数量（张）" in column_indices and i < len(film_specs):
@@ -573,7 +930,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         if col_idx < len(row.cells):
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
-                                                cell.paragraphs[0].text = film_specs[i]
+                                                paragraph = cell.paragraphs[0]
+                                                paragraph.clear()
+                                                run = paragraph.add_run(film_specs[i])
+                                                # 设置楷体五号字体
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
                                                 print(f"已更新第{row_idx+1}行底片规格/数量: {film_specs[i]}")
 
                                     if "合格" in column_indices and i < len(qualified_counts):
@@ -581,7 +944,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         if col_idx < len(row.cells):
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
-                                                cell.paragraphs[0].text = qualified_counts[i]
+                                                paragraph = cell.paragraphs[0]
+                                                paragraph.clear()
+                                                run = paragraph.add_run(qualified_counts[i])
+                                                # 设置楷体五号字体
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
                                                 print(f"已更新第{row_idx+1}行合格: {qualified_counts[i]}")
 
                                     if "不合格" in column_indices and i < len(unqualified_counts):
@@ -589,7 +958,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         if col_idx < len(row.cells):
                                             cell = row.cells[col_idx]
                                             if cell.paragraphs:
-                                                cell.paragraphs[0].text = unqualified_counts[i]
+                                                paragraph = cell.paragraphs[0]
+                                                paragraph.clear()
+                                                run = paragraph.add_run(unqualified_counts[i])
+                                                # 设置楷体五号字体
+                                                run.font.name = "楷体"
+                                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                run.font.size = Pt(10.5)
                                                 print(f"已更新第{row_idx+1}行不合格: {unqualified_counts[i]}")
                             else:
                                 print(f"警告: 表格行数不足，无法填充第{i+1}条数据")
@@ -604,7 +979,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                 if weld_col_idx < len(next_row.cells):
                                     cell = next_row.cells[weld_col_idx]
                                     if cell.paragraphs:
-                                        cell.paragraphs[0].text = "以下空白"
+                                        paragraph = cell.paragraphs[0]
+                                        paragraph.clear()
+                                        run = paragraph.add_run("以下空白")
+                                        # 设置楷体五号字体
+                                        run.font.name = "楷体"
+                                        run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                        run.font.size = Pt(10.5)
                                         set_cell_center_alignment(cell)
                                         print(f"已在第{next_empty_row_idx+1}行焊口编号列添加'以下空白'并设置居中")
 
@@ -650,28 +1031,58 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                 print(f"详细统计: 总道数={total_welds}, 合格道数={qualified_welds}, 不合格道数={unqualified_welds}, 总张数={total_sheets}")
 
                 # 在文档中查找"说明"位置并添加统计信息
+                summary_added = False
+
+                # 首先在段落中查找
                 for paragraph in doc.paragraphs:
                     if "说明" in paragraph.text:
                         # 在"说明"后添加统计信息
                         if paragraph.text.strip() == "说明":
-                            paragraph.text = f"说明：{summary_text}"
+                            # 清空段落并重新构建
+                            paragraph.clear()
+                            # 添加"说明："标签（保持原有格式）
+                            paragraph.add_run("说明：")
+                            # 添加统计信息（设置楷体五号字体）
+                            run = paragraph.add_run(summary_text)
+                            run.font.name = "楷体"
+                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                            run.font.size = Pt(10.5)
                         else:
-                            paragraph.text = paragraph.text + summary_text
+                            # 使用精确替换
+                            replace_text_in_paragraph(paragraph, paragraph.text, paragraph.text + summary_text)
                         print(f"已在段落'说明'后添加统计信息: {summary_text}")
+                        summary_added = True
                         break
 
-                # 如果在段落中没找到，则在表格中查找
-                for table in doc.tables:
-                    for row in table.rows:
-                        for cell in row.cells:
-                            if "说明" in cell.text:
-                                # 在"说明"后添加统计信息
-                                if cell.text.strip() == "说明":
-                                    cell.text = f"说明：{summary_text}"
-                                else:
-                                    cell.text = cell.text + summary_text
-                                print(f"已在表格'说明'后添加统计信息: {summary_text}")
-                                break
+                # 如果在段落中没找到，则在表格中查找（只添加一次）
+                if not summary_added:
+                    # 查找第一个包含"说明"的单元格并只在该单元格中添加统计信息
+                    # 根据模板分析，所有"说明："都在表格0行21列的不同列中，但它们是合并单元格
+                    # 我们只需要修改一次，因为它们共享相同的内容
+                    target_table = doc.tables[0] if doc.tables else None
+                    if target_table and len(target_table.rows) > 21:
+                        target_row = target_table.rows[21]
+                        if len(target_row.cells) > 0:
+                            target_cell = target_row.cells[0]
+                            if len(target_cell.paragraphs) > 0:
+                                target_paragraph = target_cell.paragraphs[0]
+                                # 检查是否已经包含统计信息，避免重复添加
+                                if "说明" in target_paragraph.text and target_paragraph.text.strip() == "说明：":
+                                    print(f"找到目标'说明：'在表格0行21列0段落0")
+                                    # 清空段落并重新构建
+                                    target_paragraph.clear()
+                                    # 添加"说明："标签（保持原有格式）
+                                    target_paragraph.add_run("说明：")
+                                    # 添加统计信息（设置楷体五号字体）
+                                    run = target_paragraph.add_run(summary_text)
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
+                                    print(f"已在表格'说明'后添加统计信息: {summary_text}")
+                                    summary_added = True
+                                elif "说明" in target_paragraph.text and "共检测" in target_paragraph.text:
+                                    print(f"统计信息已存在，跳过添加")
+                                    summary_added = True
 
                 # 保存文档
                 report_output_path = os.path.join(output_dir, f"{order_number}_RT结果通知单台账_Mode1.docx")

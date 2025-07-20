@@ -3,6 +3,8 @@ import os
 import sys
 import argparse
 from docx import Document
+from docx.shared import Pt
+from docx.oxml.ns import qn
 from datetime import datetime
 import re
 
@@ -10,6 +12,143 @@ def find_column_with_keyword(df, keyword):
     """查找包含指定关键字的列"""
     matching_cols = [col for col in df.columns if keyword.lower() in col.lower()]
     return matching_cols[0] if matching_cols else None
+
+def set_kaiti_font(paragraph):
+    """设置段落为楷体五号字体"""
+    for run in paragraph.runs:
+        run.font.name = "楷体"
+        run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+        run.font.size = Pt(10.5)
+
+def set_date_numbers_kaiti_font(paragraph, year, month, day):
+    """只将日期数字部分设置为楷体五号字体，完全保持其他文本的原有格式
+
+    简化策略：一次性处理包含年月日的run，避免多次迭代的复杂性
+    """
+    import re
+
+    # 获取当前段落文本
+    current_text = paragraph.text
+
+    # 检查是否已经有完整的日期
+    if re.search(r'\d{4}年\d{1,2}月\d{1,2}日', current_text):
+        # 已经有完整日期，不需要处理
+        return
+
+    # 简化策略：找到包含年月日的run，一次性处理所有日期
+    for run in paragraph.runs:
+        run_text = run.text
+
+        # 检查这个run是否包含年月日
+        has_year = '年' in run_text
+        has_month = '月' in run_text
+        has_day = '日' in run_text
+
+        if has_year or has_month or has_day:
+            # 构建新文本，处理所有年月日
+            new_text = run_text
+
+            # 处理年份
+            if has_year:
+                if re.search(r'\d+年', new_text):
+                    # 替换现有年份
+                    new_text = re.sub(r'\d+年', f'{year}年', new_text)
+                else:
+                    # 添加年份
+                    new_text = new_text.replace('年', f'{year}年')
+
+            # 处理月份
+            if has_month:
+                if re.search(r'\d+月', new_text):
+                    # 替换现有月份
+                    new_text = re.sub(r'\d+月', f'{month}月', new_text)
+                else:
+                    # 添加月份
+                    new_text = new_text.replace('月', f'{month}月')
+
+            # 处理日期
+            if has_day:
+                if re.search(r'\d+日', new_text):
+                    # 替换现有日期
+                    new_text = re.sub(r'\d+日', f'{day}日', new_text)
+                else:
+                    # 添加日期
+                    new_text = new_text.replace('日', f'{day}日')
+
+            # 如果文本发生了变化，重新构建这个run
+            if new_text != run_text:
+                # 保存原有格式
+                original_font_name = run.font.name
+                original_font_size = run.font.size
+                original_bold = run.bold
+                original_italic = run.italic
+                original_underline = run.underline
+
+                # 分割文本，只对数字部分设置楷体
+                parts = re.split(r'(\d+)', new_text)
+
+                # 清除原run的文本
+                run.text = ""
+
+                # 重新构建，第一个部分使用原run
+                for j, part in enumerate(parts):
+                    if part:
+                        if j == 0:
+                            # 第一个部分使用原run，保持原有格式
+                            run.text = part
+                            if part.isdigit():
+                                # 数字设置为楷体五号
+                                run.font.name = "楷体"
+                                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                run.font.size = Pt(10.5)
+                            else:
+                                # 非数字保持原有格式
+                                # 保持原有字体名称（包括None的情况）
+                                run.font.name = original_font_name
+                                # 保持原有字体大小（包括None的情况）
+                                run.font.size = original_font_size
+                                # 保持原有格式属性
+                                if original_bold is not None:
+                                    run.bold = original_bold
+                                if original_italic is not None:
+                                    run.italic = original_italic
+                                if original_underline is not None:
+                                    run.underline = original_underline
+                        else:
+                            # 后续部分创建新run
+                            new_run = paragraph.add_run(part)
+                            if part.isdigit():
+                                # 数字设置为楷体五号
+                                new_run.font.name = "楷体"
+                                new_run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                new_run.font.size = Pt(10.5)
+                            else:
+                                # 非数字保持原有格式
+                                # 保持原有字体名称（包括None的情况）
+                                new_run.font.name = original_font_name
+                                # 保持原有字体大小（包括None的情况）
+                                new_run.font.size = original_font_size
+                                # 保持原有格式属性
+                                if original_bold is not None:
+                                    new_run.bold = original_bold
+                                if original_italic is not None:
+                                    new_run.italic = original_italic
+                                if original_underline is not None:
+                                    new_run.underline = original_underline
+
+                # 处理完这个run后，跳出循环（避免重复处理）
+                break
+
+    # 如果段落中没有年月日字符，在末尾添加完整日期
+    current_text = paragraph.text
+    if '年' not in current_text and '月' not in current_text and '日' not in current_text:
+        date_parts = [str(year), '年', str(month), '月', str(day), '日']
+        for part in date_parts:
+            run = paragraph.add_run(part)
+            if part.isdigit():
+                run.font.name = "楷体"
+                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                run.font.size = Pt(10.5)
 
 def get_detection_level_by_method(detection_method):
     """根据检测方法获取对应的检测级别值
@@ -296,15 +435,18 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                 for paragraph in doc.paragraphs:
                     if project_name and "工程名称参数值" in paragraph.text:
                         paragraph.text = paragraph.text.replace("工程名称参数值", project_name)
-                        print(f"已将段落中的'工程名称参数值'替换为'{project_name}'")
-                    
+                        set_kaiti_font(paragraph)
+                        print(f"已将段落中的'工程名称参数值'替换为'{project_name}'并设置为楷体五号字体")
+
                     if client_name and "委托单位参数值" in paragraph.text:
                         paragraph.text = paragraph.text.replace("委托单位参数值", client_name)
-                        print(f"已将段落中的'委托单位参数值'替换为'{client_name}'")
-                    
+                        set_kaiti_font(paragraph)
+                        print(f"已将段落中的'委托单位参数值'替换为'{client_name}'并设置为楷体五号字体")
+
                     if inspection_method and "检测方法参数" in paragraph.text:
                         paragraph.text = paragraph.text.replace("检测方法参数", inspection_method)
-                        print(f"已将段落中的'检测方法参数'替换为'{inspection_method}'")
+                        set_kaiti_font(paragraph)
+                        print(f"已将段落中的'检测方法参数'替换为'{inspection_method}'并设置为楷体五号字体")
                 
                 # 2. 遍历表格中的单元格
                 for table in doc.tables:
@@ -313,15 +455,18 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                             for paragraph in cell.paragraphs:
                                 if project_name and "工程名称参数值" in paragraph.text:
                                     paragraph.text = paragraph.text.replace("工程名称参数值", project_name)
-                                    print(f"已将表格单元格中的'工程名称参数值'替换为'{project_name}'")
-                                
+                                    set_kaiti_font(paragraph)
+                                    print(f"已将表格单元格中的'工程名称参数值'替换为'{project_name}'并设置为楷体五号字体")
+
                                 if client_name and "委托单位参数值" in paragraph.text:
                                     paragraph.text = paragraph.text.replace("委托单位参数值", client_name)
-                                    print(f"已将表格单元格中的'委托单位参数值'替换为'{client_name}'")
-                                
+                                    set_kaiti_font(paragraph)
+                                    print(f"已将表格单元格中的'委托单位参数值'替换为'{client_name}'并设置为楷体五号字体")
+
                                 if inspection_method and "检测方法参数" in paragraph.text:
                                     paragraph.text = paragraph.text.replace("检测方法参数", inspection_method)
-                                    print(f"已将表格单元格中的'检测方法参数'替换为'{inspection_method}'")
+                                    set_kaiti_font(paragraph)
+                                    print(f"已将表格单元格中的'检测方法参数'替换为'{inspection_method}'并设置为楷体五号字体")
                 
                 print("==== 参数值替换完成 ====\n")
             
@@ -329,19 +474,23 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
             for paragraph in doc.paragraphs:
                 if unit_name and "单元名称值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("单元名称值", unit_name)
-                    print(f"已将段落中的'单元名称值'替换为'{unit_name}'")
+                    set_kaiti_font(paragraph)
+                    print(f"已将段落中的'单元名称值'替换为'{unit_name}'并设置为楷体五号字体")
 
                 if detection_method and "检测方法值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("检测方法值", detection_method)
-                    print(f"已将段落中的'检测方法值'替换为'{detection_method}'")
+                    set_kaiti_font(paragraph)
+                    print(f"已将段落中的'检测方法值'替换为'{detection_method}'并设置为楷体五号字体")
 
                 if detection_level and "检测级别值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("检测级别值", detection_level)
-                    print(f"已将段落中的'检测级别值'替换为'{detection_level}'")
+                    set_kaiti_font(paragraph)
+                    print(f"已将段落中的'检测级别值'替换为'{detection_level}'并设置为楷体五号字体")
 
                 if "委托单号编号值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("委托单号编号值", str(order_number))
-                    print(f"已将段落中的'委托单号编号值'替换为'{order_number}'")
+                    set_kaiti_font(paragraph)
+                    print(f"已将段落中的'委托单号编号值'替换为'{order_number}'并设置为楷体五号字体")
             
             # 遍历表格中的单元格替换参数值
             for table in doc.tables:
@@ -350,19 +499,23 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                         for paragraph in cell.paragraphs:
                             if unit_name and "单元名称值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("单元名称值", unit_name)
-                                print(f"已将表格单元格中的'单元名称值'替换为'{unit_name}'")
+                                set_kaiti_font(paragraph)
+                                print(f"已将表格单元格中的'单元名称值'替换为'{unit_name}'并设置为楷体五号字体")
 
                             if detection_method and "检测方法值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("检测方法值", detection_method)
-                                print(f"已将表格单元格中的'检测方法值'替换为'{detection_method}'")
+                                set_kaiti_font(paragraph)
+                                print(f"已将表格单元格中的'检测方法值'替换为'{detection_method}'并设置为楷体五号字体")
 
                             if detection_level and "检测级别值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("检测级别值", detection_level)
-                                print(f"已将表格单元格中的'检测级别值'替换为'{detection_level}'")
+                                set_kaiti_font(paragraph)
+                                print(f"已将表格单元格中的'检测级别值'替换为'{detection_level}'并设置为楷体五号字体")
 
                             if "委托单号编号值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("委托单号编号值", str(order_number))
-                                print(f"已将表格单元格中的'委托单号编号值'替换为'{order_number}'")
+                                set_kaiti_font(paragraph)
+                                print(f"已将表格单元格中的'委托单号编号值'替换为'{order_number}'并设置为楷体五号字体")
             
             # 填写通知单编号（委托单编号）
             notification_number_updated = False
@@ -391,7 +544,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                             # 修改单元格内容
                             if cell.paragraphs:
                                 cell.paragraphs[0].text = str(order_number)
-                                print(f"已将单元格内容从 '{original_content}' 修改为 '{order_number}'")
+                                set_kaiti_font(cell.paragraphs[0])
+                                print(f"已将单元格内容从 '{original_content}' 修改为 '{order_number}'并设置为楷体五号字体")
                                 notification_number_updated = True
                                 break
                     if notification_number_updated:
@@ -427,7 +581,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                 # 修改单元格内容
                                 if last_cell.paragraphs:
                                     last_cell.paragraphs[0].text = str(order_number)
-                                    print(f"已将单元格内容从 '{original_content}' 修改为 '{order_number}'")
+                                    set_kaiti_font(last_cell.paragraphs[0])
+                                    print(f"已将单元格内容从 '{original_content}' 修改为 '{order_number}'并设置为楷体五号字体")
                                     notification_number_updated = True
                                     break
                         if notification_number_updated:
@@ -458,7 +613,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     right_cell = row.cells[j + 1]
                                     if right_cell.paragraphs and unit_name:
                                         right_cell.paragraphs[0].text = unit_name
-                                        print(f"已将单元名称 {unit_name} 填入单位工程名称右侧单元格")
+                                        set_kaiti_font(right_cell.paragraphs[0])
+                                        print(f"已将单元名称 {unit_name} 填入单位工程名称右侧单元格并设置为楷体五号字体")
                                         found_in_table = True
                                         break
                             if found_in_table:
@@ -480,7 +636,8 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                             new_text = new_text + " " + unit_name
                         
                         paragraph.text = new_text
-                        print(f"已将单元名称 {unit_name} 添加到单位工程名称段落")
+                        set_kaiti_font(paragraph)
+                        print(f"已将单元名称 {unit_name} 添加到单位工程名称段落并设置为楷体五号字体")
             
             # 处理表格
             for table in doc.tables:
@@ -490,70 +647,50 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                         # 1) 处理"检测人"日期
                         if "检测人" in cell.text:
                             print(f"找到检测人单元格: 第{i+1}行, 第{j+1}列")
-                            
+
                             # 检查单元格中的所有段落
                             date_found = False
                             for paragraph in cell.paragraphs:
                                 if "年" in paragraph.text and "月" in paragraph.text and "日" in paragraph.text:
                                     print(f"找到日期段落: {paragraph.text}")
-                                    
-                                    # 创建新的文本，确保只有一个年月日
-                                    new_text = paragraph.text
-                                    # 确保年月日前没有数字
-                                    new_text = re.sub(r'\d*年', '年', new_text)
-                                    new_text = re.sub(r'\d*月', '月', new_text)
-                                    new_text = re.sub(r'\d*日', '日', new_text)
-                                    
-                                    # 在年月日前插入正确的数字
-                                    new_text = new_text.replace('年', f'{year}年')
-                                    new_text = new_text.replace('月', f'{month}月')
-                                    new_text = new_text.replace('日', f'{day}日')
-                                    
-                                    paragraph.text = new_text
+
+                                    # 使用新的精确字体设置方法，只对数字设置楷体五号
+                                    set_date_numbers_kaiti_font(paragraph, year, month, day)
                                     date_found = True
-                                    print("已更新检测人日期")
+                                    print("已更新检测人日期，只将数字设置为楷体五号字体")
                                     break
-                            
+
                             # 如果没有找到日期段落，尝试创建新段落
                             if not date_found:
                                 print("未在检测人单元格中找到日期段落，尝试其他方法...")
-                                # 添加新段落
-                                p = cell.add_paragraph(f"{year}年{month}月{day}日")
-                                print("已添加检测人日期")
+                                # 添加新段落，只对数字设置楷体五号
+                                new_paragraph = cell.add_paragraph()
+                                set_date_numbers_kaiti_font(new_paragraph, year, month, day)
+                                print("已添加检测人日期，只将数字设置为楷体五号字体")
                         
                         # 2) 处理"审核"日期
                         if "审核" in cell.text:
                             print(f"找到审核单元格: 第{i+1}行, 第{j+1}列")
-                            
+
                             # 检查单元格中的所有段落
                             date_found = False
                             for paragraph in cell.paragraphs:
                                 if "年" in paragraph.text and "月" in paragraph.text and "日" in paragraph.text:
                                     print(f"找到日期段落: {paragraph.text}")
-                                    
-                                    # 创建新的文本，确保只有一个年月日
-                                    new_text = paragraph.text
-                                    # 确保年月日前没有数字
-                                    new_text = re.sub(r'\d*年', '年', new_text)
-                                    new_text = re.sub(r'\d*月', '月', new_text)
-                                    new_text = re.sub(r'\d*日', '日', new_text)
-                                    
-                                    # 在年月日前插入正确的数字
-                                    new_text = new_text.replace('年', f'{year}年')
-                                    new_text = new_text.replace('月', f'{month}月')
-                                    new_text = new_text.replace('日', f'{day}日')
-                                    
-                                    paragraph.text = new_text
+
+                                    # 使用新的精确字体设置方法，只对数字设置楷体五号
+                                    set_date_numbers_kaiti_font(paragraph, year, month, day)
                                     date_found = True
-                                    print("已更新审核日期")
+                                    print("已更新审核日期，只将数字设置为楷体五号字体")
                                     break
-                            
+
                             # 如果没有找到日期段落，尝试创建新段落
                             if not date_found:
                                 print("未在审核单元格中找到日期段落，尝试其他方法...")
-                                # 添加新段落
-                                p = cell.add_paragraph(f"{year}年{month}月{day}日")
-                                print("已添加审核日期")
+                                # 添加新段落，只对数字设置楷体五号
+                                new_paragraph = cell.add_paragraph()
+                                set_date_numbers_kaiti_font(new_paragraph, year, month, day)
+                                print("已添加审核日期，只将数字设置为楷体五号字体")
                 
                 # 查找表头行，确定各列的位置
                 column_indices = {}
@@ -641,8 +778,9 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     cell = row.cells[col_idx]
                                     if cell.paragraphs:
                                         cell.paragraphs[0].text = str(order_number)
+                                        set_kaiti_font(cell.paragraphs[0])
                                         print(f"已更新第{row_idx+1}行委托单编号: {order_number}")
-                            
+
                             # 2. 填写单线号（检件编号）
                             if "单线号" in column_indices and i < len(inspection_numbers):
                                 col_idx = column_indices["单线号"]
@@ -650,8 +788,9 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     cell = row.cells[col_idx]
                                     if cell.paragraphs:
                                         cell.paragraphs[0].text = str(inspection_numbers[i])
+                                        set_kaiti_font(cell.paragraphs[0])
                                         print(f"已更新第{row_idx+1}行单线号: {inspection_numbers[i]}")
-                            
+
                             # 3. 填写焊口号
                             if "焊口号" in column_indices and i < len(weld_numbers):
                                 col_idx = column_indices["焊口号"]
@@ -659,8 +798,9 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     cell = row.cells[col_idx]
                                     if cell.paragraphs:
                                         cell.paragraphs[0].text = str(weld_numbers[i])
+                                        set_kaiti_font(cell.paragraphs[0])
                                         print(f"已更新第{row_idx+1}行焊口号: {weld_numbers[i]}")
-                            
+
                             # 4. 填写焊工号
                             if "焊工号" in column_indices and i < len(welder_numbers):
                                 col_idx = column_indices["焊工号"]
@@ -668,6 +808,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     cell = row.cells[col_idx]
                                     if cell.paragraphs:
                                         cell.paragraphs[0].text = str(welder_numbers[i])
+                                        set_kaiti_font(cell.paragraphs[0])
                                         print(f"已更新第{row_idx+1}行焊工号: {welder_numbers[i]}")
 
                             # 5. 填写检测批号 - 填写"/"
@@ -677,6 +818,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     cell = row.cells[col_idx]
                                     if cell.paragraphs:
                                         cell.paragraphs[0].text = "/"
+                                        set_kaiti_font(cell.paragraphs[0])
                                         print(f"已更新第{row_idx+1}行检测批号: /")
 
                             # 6. 填写检测结果（焊口情况）- K列对应检测结果
@@ -691,6 +833,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                             cell.paragraphs[0].text = ""
                                         else:
                                             cell.paragraphs[0].text = str(weld_condition)
+                                        set_kaiti_font(cell.paragraphs[0])
                                         print(f"已更新第{row_idx+1}行检测结果: {weld_condition}")
 
                             # 7. 填写返修张/处数 - L列，空值填"0"
@@ -705,6 +848,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                             cell.paragraphs[0].text = "0"  # 为空填写0
                                         else:
                                             cell.paragraphs[0].text = str(repair_count)
+                                        set_kaiti_font(cell.paragraphs[0])
                                         print(f"已更新第{row_idx+1}行返修张/处数: {cell.paragraphs[0].text}")
 
                     # 在数据填充完成后，在下一行添加"以下空白"字样
@@ -728,20 +872,22 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                 cell = table.rows[next_row_idx].cells[col_idx]
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = "以下空白"
+                                    set_kaiti_font(cell.paragraphs[0])
                                     # 设置文本居中对齐
                                     from docx.enum.text import WD_ALIGN_PARAGRAPH
                                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                                    print(f"已在第{next_row_idx+1}行单线号列添加'以下空白'并设置居中对齐")
+                                    print(f"已在第{next_row_idx+1}行单线号列添加'以下空白'并设置居中对齐和楷体五号字体")
                         else:
                             # 如果没有找到单线号列，在第一列添加
                             if next_row_idx < len(table.rows) and len(table.rows[next_row_idx].cells) > 0:
                                 cell = table.rows[next_row_idx].cells[0]
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = "以下空白"
+                                    set_kaiti_font(cell.paragraphs[0])
                                     # 设置文本居中对齐
                                     from docx.enum.text import WD_ALIGN_PARAGRAPH
                                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                                    print(f"已在第{next_row_idx+1}行第一列添加'以下空白'并设置居中对齐")
+                                    print(f"已在第{next_row_idx+1}行第一列添加'以下空白'并设置居中对齐和楷体五号字体")
 
             # 保存文档
             try:

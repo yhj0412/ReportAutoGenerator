@@ -3,6 +3,8 @@ import os
 import sys
 import argparse
 from docx import Document
+from docx.shared import Pt
+from docx.oxml.ns import qn
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from datetime import datetime
 import re
@@ -11,6 +13,37 @@ def find_column_with_keyword(df, keyword):
     """查找包含指定关键字的列"""
     matching_cols = [col for col in df.columns if keyword.lower() in col.lower()]
     return matching_cols[0] if matching_cols else None
+
+def replace_text_in_paragraph(paragraph, old_text, new_text):
+    """在段落中精确替换文本，只对替换的部分设置楷体五号字体
+
+    Args:
+        paragraph: Word段落对象
+        old_text: 要替换的文本
+        new_text: 新文本
+    """
+    # 获取段落的完整文本
+    full_text = paragraph.text
+
+    if old_text in full_text:
+        # 清空段落
+        paragraph.clear()
+
+        # 分割文本
+        parts = full_text.split(old_text)
+
+        # 重新构建段落
+        for i, part in enumerate(parts):
+            if i > 0:
+                # 添加替换的文本（设置楷体五号字体）
+                run = paragraph.add_run(new_text)
+                run.font.name = "楷体"
+                run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                run.font.size = Pt(10.5)
+
+            if part:
+                # 添加原始文本部分（保持原有格式）
+                paragraph.add_run(part)
 
 def get_output_filename(word_template_path, order_number):
     """根据Word模板路径和委托单编号生成输出文件名
@@ -272,9 +305,23 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
         for paragraph in doc.paragraphs:
             for key, value in replacement_dict.items():
                 if key in paragraph.text and value:
-                    paragraph.text = paragraph.text.replace(key, value)
-                    print(f"已将段落中的'{key}'替换为'{value}'")
-        
+                    # 保存原始文本
+                    original_text = paragraph.text
+                    # 只有当段落文本完全等于占位符时，才替换整个段落
+                    if original_text.strip() == key:
+                        # 清空段落内容并重新添加
+                        paragraph.clear()
+                        run = paragraph.add_run(value)
+                        # 设置楷体五号字体
+                        run.font.name = "楷体"
+                        run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                        run.font.size = Pt(10.5)
+                        print(f"已将段落中的'{key}'替换为'{value}'并设置为楷体五号字体")
+                    else:
+                        # 如果段落包含其他内容，需要精确替换
+                        replace_text_in_paragraph(paragraph, key, value)
+                        print(f"已将段落中的'{key}'替换为'{value}'并设置为楷体五号字体")
+
         # 2. 遍历表格中的单元格
         for table in doc.tables:
             for row in table.rows:
@@ -282,8 +329,22 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                     for paragraph in cell.paragraphs:
                         for key, value in replacement_dict.items():
                             if key in paragraph.text and value:
-                                paragraph.text = paragraph.text.replace(key, value)
-                                print(f"已将表格单元格中的'{key}'替换为'{value}'")
+                                # 保存原始文本
+                                original_text = paragraph.text
+                                # 只有当段落文本完全等于占位符时，才替换整个段落
+                                if original_text.strip() == key:
+                                    # 清空段落内容并重新添加
+                                    paragraph.clear()
+                                    run = paragraph.add_run(value)
+                                    # 设置楷体五号字体
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
+                                    print(f"已将表格单元格中的'{key}'替换为'{value}'并设置为楷体五号字体")
+                                else:
+                                    # 如果段落包含其他内容，需要精确替换
+                                    replace_text_in_paragraph(paragraph, key, value)
+                                    print(f"已将表格单元格中的'{key}'替换为'{value}'并设置为楷体五号字体")
         
         print("==== 参数值替换完成 ====\n")
         
@@ -395,8 +456,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                             if col_idx < len(row.cells):
                                 cell = row.cells[col_idx]
                                 if cell.paragraphs:
-                                    # 检测批号从1开始排序
-                                    cell.paragraphs[0].text = str(i + 1)
+                                    paragraph = cell.paragraphs[0]
+                                    paragraph.clear()
+                                    run = paragraph.add_run(str(i + 1))
+                                    # 设置楷体五号字体
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
                                     print(f"已更新第{row_idx+1}行检测批号: {i + 1}")
 
                         # 2. 填写管道编号（检件编号）
@@ -405,7 +471,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                             if col_idx < len(row.cells):
                                 cell = row.cells[col_idx]
                                 if cell.paragraphs:
-                                    cell.paragraphs[0].text = str(pipe_codes[i])
+                                    paragraph = cell.paragraphs[0]
+                                    paragraph.clear()
+                                    run = paragraph.add_run(str(pipe_codes[i]))
+                                    # 设置楷体五号字体
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
                                     print(f"已更新第{row_idx+1}行管道编号: {pipe_codes[i]}")
 
                         # 3. 填写焊口号
@@ -414,7 +486,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                             if col_idx < len(row.cells):
                                 cell = row.cells[col_idx]
                                 if cell.paragraphs:
-                                    cell.paragraphs[0].text = str(weld_numbers[i])
+                                    paragraph = cell.paragraphs[0]
+                                    paragraph.clear()
+                                    run = paragraph.add_run(str(weld_numbers[i]))
+                                    # 设置楷体五号字体
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
                                     print(f"已更新第{row_idx+1}行焊口号: {weld_numbers[i]}")
 
                         # 4. 填写焊工号
@@ -423,7 +501,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                             if col_idx < len(row.cells):
                                 cell = row.cells[col_idx]
                                 if cell.paragraphs:
-                                    cell.paragraphs[0].text = str(welder_numbers[i])
+                                    paragraph = cell.paragraphs[0]
+                                    paragraph.clear()
+                                    run = paragraph.add_run(str(welder_numbers[i]))
+                                    # 设置楷体五号字体
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
                                     print(f"已更新第{row_idx+1}行焊工号: {welder_numbers[i]}")
 
                         # 5. 填写焊口规格
@@ -432,7 +516,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                             if col_idx < len(row.cells):
                                 cell = row.cells[col_idx]
                                 if cell.paragraphs:
-                                    cell.paragraphs[0].text = str(specifications[i])
+                                    paragraph = cell.paragraphs[0]
+                                    paragraph.clear()
+                                    run = paragraph.add_run(str(specifications[i]))
+                                    # 设置楷体五号字体
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
                                     print(f"已更新第{row_idx+1}行焊口规格: {specifications[i]}")
 
                         # 6. 填写焊口材质
@@ -441,7 +531,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                             if col_idx < len(row.cells):
                                 cell = row.cells[col_idx]
                                 if cell.paragraphs:
-                                    cell.paragraphs[0].text = str(materials[i])
+                                    paragraph = cell.paragraphs[0]
+                                    paragraph.clear()
+                                    run = paragraph.add_run(str(materials[i]))
+                                    # 设置楷体五号字体
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
                                     print(f"已更新第{row_idx+1}行焊口材质: {materials[i]}")
 
                         # 7. 填写备注
@@ -452,7 +548,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                 if cell.paragraphs:
                                     note = notes[i]
                                     if pd.notna(note):  # 检查是否为NaN
-                                        cell.paragraphs[0].text = str(note)
+                                        paragraph = cell.paragraphs[0]
+                                        paragraph.clear()
+                                        run = paragraph.add_run(str(note))
+                                        # 设置楷体五号字体
+                                        run.font.name = "楷体"
+                                        run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                        run.font.size = Pt(10.5)
                                         print(f"已更新第{row_idx+1}行备注")
 
                         # 8. 填写单线号
@@ -461,7 +563,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                             if col_idx < len(row.cells):
                                 cell = row.cells[col_idx]
                                 if cell.paragraphs:
-                                    cell.paragraphs[0].text = str(line_numbers[i])
+                                    paragraph = cell.paragraphs[0]
+                                    paragraph.clear()
+                                    run = paragraph.add_run(str(line_numbers[i]))
+                                    # 设置楷体五号字体
+                                    run.font.name = "楷体"
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    run.font.size = Pt(10.5)
                                     print(f"已更新第{row_idx+1}行单线号: {line_numbers[i]}")
 
                 # 在数据填充完成后，在下一行的"管道编号"列填写"以下空白"
@@ -507,29 +615,53 @@ def update_date_in_cell(cell, year, month, day):
     for paragraph in cell.paragraphs:
         if "年" in paragraph.text and "月" in paragraph.text and "日" in paragraph.text:
             print(f"找到日期段落: {paragraph.text}")
-            
-            # 创建新的文本，确保只有一个年月日
-            new_text = paragraph.text
-            # 确保年月日前没有数字
-            new_text = re.sub(r'\d*年', '年', new_text)
-            new_text = re.sub(r'\d*月', '月', new_text)
-            new_text = re.sub(r'\d*日', '日', new_text)
-            
-            # 在年月日前插入正确的数字
-            new_text = new_text.replace('年', f'{year}年')
-            new_text = new_text.replace('月', f'{month}月')
-            new_text = new_text.replace('日', f'{day}日')
-            
-            paragraph.text = new_text
-            date_found = True
-            print("已更新日期")
-            break
-    
+
+            original_text = paragraph.text
+            new_date = f'{year}年{month}月{day}日'
+
+            # 查找日期部分的模式 - 匹配各种日期格式
+            date_pattern = r'(\d+年\d+月\d+日|年\s*月\s*日\.?|年月日\.?)'
+
+            if re.search(date_pattern, original_text):
+                # 清空段落
+                paragraph.clear()
+
+                # 使用正则表达式替换，同时保持格式
+                current_pos = 0
+
+                for match in re.finditer(date_pattern, original_text):
+                    # 添加匹配前的文本（标签部分），保持原有格式
+                    before_text = original_text[current_pos:match.start()]
+                    if before_text:
+                        paragraph.add_run(before_text)
+
+                    # 添加日期部分，设置楷体五号字体
+                    date_run = paragraph.add_run(new_date)
+                    date_run.font.name = "楷体"
+                    date_run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                    date_run.font.size = Pt(10.5)
+
+                    current_pos = match.end()
+
+                # 添加剩余的文本（如果有的话）
+                remaining_text = original_text[current_pos:]
+                if remaining_text:
+                    paragraph.add_run(remaining_text)
+
+                date_found = True
+                print("已更新日期并设置为楷体五号字体")
+                break
+
     # 如果没有找到日期段落，尝试创建新段落
     if not date_found:
         print("未找到日期段落，尝试添加新日期...")
-        p = cell.add_paragraph(f"{year}年{month}月{day}日")
-        print("已添加日期")
+        p = cell.add_paragraph()
+        run = p.add_run(f"{year}年{month}月{day}日")
+        # 设置楷体五号字体
+        run.font.name = "楷体"
+        run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+        run.font.size = Pt(10.5)
+        print("已添加日期并设置为楷体五号字体")
 
 def main():
     # 创建命令行参数解析器
