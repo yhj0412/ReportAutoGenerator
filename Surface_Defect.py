@@ -20,6 +20,121 @@ def set_kaiti_font(paragraph):
         run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
         run.font.size = Pt(10.5)
 
+def replace_text_with_kaiti_font(paragraph, old_text, new_text):
+    """替换段落中的指定文本并只对新文本设置楷体五号字体，保持其他文本的原有格式"""
+    import re
+
+    # 检查段落是否包含要替换的文本
+    if old_text not in paragraph.text:
+        return False
+
+    # 方法1：先尝试在单个run中查找和替换
+    for run in paragraph.runs:
+        if old_text in run.text:
+            # 保存原有格式
+            original_font_name = run.font.name
+            original_font_size = run.font.size
+            original_bold = run.bold
+            original_italic = run.italic
+            original_underline = run.underline
+
+            # 替换文本
+            new_run_text = run.text.replace(old_text, new_text)
+
+            # 分割文本，将新文本和原文本分开
+            parts = new_run_text.split(new_text)
+
+            # 清除原run的文本
+            run.text = ""
+
+            # 重新构建runs
+            for i, part in enumerate(parts):
+                if i > 0:
+                    # 添加新文本（楷体五号）
+                    new_run = paragraph.add_run(new_text)
+                    new_run.font.name = "楷体"
+                    new_run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                    new_run.font.size = Pt(10.5)
+
+                if part:  # 如果部分不为空，添加原文本
+                    if i == 0:
+                        # 第一个部分使用原run，保持原有格式
+                        run.text = part
+                        run.font.name = original_font_name
+                        run.font.size = original_font_size
+                        if original_bold is not None:
+                            run.bold = original_bold
+                        if original_italic is not None:
+                            run.italic = original_italic
+                        if original_underline is not None:
+                            run.underline = original_underline
+                    else:
+                        # 后续部分创建新run，保持原有格式
+                        text_run = paragraph.add_run(part)
+                        text_run.font.name = original_font_name
+                        text_run.font.size = original_font_size
+                        if original_bold is not None:
+                            text_run.bold = original_bold
+                        if original_italic is not None:
+                            text_run.italic = original_italic
+                        if original_underline is not None:
+                            text_run.underline = original_underline
+
+            return True
+
+    # 方法2：如果在单个run中没找到，使用简单的段落级别替换
+    # 这种情况下，我们使用段落的整体文本替换，然后重新设置格式
+    if old_text in paragraph.text:
+        # 保存第一个run的格式作为默认格式
+        default_font_name = None
+        default_font_size = None
+        default_bold = None
+        default_italic = None
+        default_underline = None
+
+        if paragraph.runs:
+            first_run = paragraph.runs[0]
+            default_font_name = first_run.font.name
+            default_font_size = first_run.font.size
+            default_bold = first_run.bold
+            default_italic = first_run.italic
+            default_underline = first_run.underline
+
+        # 执行文本替换
+        original_text = paragraph.text
+        new_paragraph_text = original_text.replace(old_text, new_text)
+
+        # 清除段落内容
+        paragraph.clear()
+
+        # 分割文本，找到新文本的位置
+        parts = new_paragraph_text.split(new_text)
+
+        # 重新构建段落
+        for i, part in enumerate(parts):
+            if i > 0:
+                # 添加新文本（楷体五号）
+                new_run = paragraph.add_run(new_text)
+                new_run.font.name = "楷体"
+                new_run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                new_run.font.size = Pt(10.5)
+
+            if part:  # 如果部分不为空，添加原文本
+                text_run = paragraph.add_run(part)
+                # 使用默认格式
+                text_run.font.name = default_font_name
+                text_run.font.size = default_font_size
+                if default_bold is not None:
+                    text_run.bold = default_bold
+                if default_italic is not None:
+                    text_run.italic = default_italic
+                if default_underline is not None:
+                    text_run.underline = default_underline
+
+        return True
+
+    return False
+
 def set_date_numbers_kaiti_font(paragraph, year, month, day):
     """只将日期数字部分设置为楷体五号字体，完全保持其他文本的原有格式
 
@@ -483,9 +598,10 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                     print(f"已将段落中的'检测方法值'替换为'{detection_method}'并设置为楷体五号字体")
 
                 if detection_level and "检测级别值" in paragraph.text:
-                    paragraph.text = paragraph.text.replace("检测级别值", detection_level)
-                    set_kaiti_font(paragraph)
-                    print(f"已将段落中的'检测级别值'替换为'{detection_level}'并设置为楷体五号字体")
+                    if replace_text_with_kaiti_font(paragraph, "检测级别值", detection_level):
+                        print(f"已将段落中的'检测级别值'替换为'{detection_level}'并只对新文本设置为楷体五号字体")
+                    else:
+                        print(f"警告: 未能替换段落中的'检测级别值'")
 
                 if "委托单号编号值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("委托单号编号值", str(order_number))
@@ -508,9 +624,10 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                 print(f"已将表格单元格中的'检测方法值'替换为'{detection_method}'并设置为楷体五号字体")
 
                             if detection_level and "检测级别值" in paragraph.text:
-                                paragraph.text = paragraph.text.replace("检测级别值", detection_level)
-                                set_kaiti_font(paragraph)
-                                print(f"已将表格单元格中的'检测级别值'替换为'{detection_level}'并设置为楷体五号字体")
+                                if replace_text_with_kaiti_font(paragraph, "检测级别值", detection_level):
+                                    print(f"已将表格单元格中的'检测级别值'替换为'{detection_level}'并只对新文本设置为楷体五号字体")
+                                else:
+                                    print(f"警告: 未能替换表格单元格中的'检测级别值'")
 
                             if "委托单号编号值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("委托单号编号值", str(order_number))
