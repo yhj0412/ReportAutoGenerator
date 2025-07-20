@@ -3,6 +3,8 @@ import os
 import sys
 import argparse
 from docx import Document
+from docx.shared import Pt
+from docx.oxml.ns import qn
 from datetime import datetime
 import re
 
@@ -10,6 +12,20 @@ def find_column_with_keyword(df, keyword):
     """查找包含指定关键字的列"""
     matching_cols = [col for col in df.columns if keyword.lower() in col.lower()]
     return matching_cols[0] if matching_cols else None
+
+def set_font_style(paragraph, font_name="楷体", font_size=10.5):
+    """设置段落字体为楷体五号（10.5磅）
+
+    Args:
+        paragraph: Word段落对象
+        font_name: 字体名称，默认为"楷体"
+        font_size: 字体大小，默认为10.5磅（五号字）
+    """
+    for run in paragraph.runs:
+        run.font.name = font_name
+        run.font.size = Pt(font_size)
+        # 设置中文字体
+        run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
 
 def get_output_filename(word_template_path, order_number, ray_type):
     """根据Word模板路径、委托单编号和射线类型生成输出文件名
@@ -341,72 +357,86 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
             for paragraph in doc.paragraphs:
                 if "委托单编号值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("委托单编号值", committee_order)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'委托单编号值'替换为'{committee_order}'")
                     replaced = True
-                
+
                 if "射源种类值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("射源种类值", ray_source)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'射源种类值'替换为'{ray_source}'")
                     replaced = True
-                
+
                 if "合格级别值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("合格级别值", grade_level)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'合格级别值'替换为'{grade_level}'")
                     replaced = True
-                
+
                 if "检测比例值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("检测比例值", inspection_ratio)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'检测比例值'替换为'{inspection_ratio}'")
                     replaced = True
                 
                 if "焊接方法值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("焊接方法值", welding_method)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'焊接方法值'替换为'{welding_method}'")
                     replaced = True
-                
+
                 if "检测时机值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("检测时机值", inspection_time)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'检测时机值'替换为'{inspection_time}'")
                     replaced = True
-                
+
                 if "焦点尺寸值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("焦点尺寸值", focus_size)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'焦点尺寸值'替换为'{focus_size}'")
                     replaced = True
-                
+
                 if "铅增感屏值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("铅增感屏值", lead_screen)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'铅增感屏值'替换为'{lead_screen}'")
                     replaced = True
-                
+
                 if "胶片等级值" in paragraph.text:
                     paragraph.text = paragraph.text.replace("胶片等级值", film_grade)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'胶片等级值'替换为'{film_grade}'")
                     replaced = True
                 
                 # 新增的5个参数替换
                 if "工程名称值" in paragraph.text and project_name:
                     paragraph.text = paragraph.text.replace("工程名称值", project_name)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'工程名称值'替换为'{project_name}'")
                     replaced = True
-                
+
                 if "委托单位值" in paragraph.text and entrusting_unit:
                     paragraph.text = paragraph.text.replace("委托单位值", entrusting_unit)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'委托单位值'替换为'{entrusting_unit}'")
                     replaced = True
-                
+
                 if "操作指导书编号值" in paragraph.text and operation_guide_number:
                     paragraph.text = paragraph.text.replace("操作指导书编号值", operation_guide_number)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'操作指导书编号值'替换为'{operation_guide_number}'")
                     replaced = True
-                
+
                 if "承包单位值" in paragraph.text and contracting_unit:
                     paragraph.text = paragraph.text.replace("承包单位值", contracting_unit)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'承包单位值'替换为'{contracting_unit}'")
                     replaced = True
-                
+
                 if "设备型号值" in paragraph.text and equipment_model:
                     paragraph.text = paragraph.text.replace("设备型号值", equipment_model)
+                    set_font_style(paragraph)  # 设置楷体五号字体
                     print(f"已将段落中的'设备型号值'替换为'{equipment_model}'")
                     replaced = True
             
@@ -417,72 +447,86 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                         for paragraph in cell.paragraphs:
                             if "委托单编号值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("委托单编号值", committee_order)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'委托单编号值'替换为'{committee_order}'")
                                 replaced = True
-                            
+
                             if "射源种类值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("射源种类值", ray_source)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'射源种类值'替换为'{ray_source}'")
                                 replaced = True
-                            
+
                             if "合格级别值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("合格级别值", grade_level)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'合格级别值'替换为'{grade_level}'")
                                 replaced = True
-                            
+
                             if "检测比例值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("检测比例值", inspection_ratio)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'检测比例值'替换为'{inspection_ratio}'")
                                 replaced = True
                             
                             if "焊接方法值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("焊接方法值", welding_method)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'焊接方法值'替换为'{welding_method}'")
                                 replaced = True
-                            
+
                             if "检测时机值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("检测时机值", inspection_time)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'检测时机值'替换为'{inspection_time}'")
                                 replaced = True
-                            
+
                             if "焦点尺寸值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("焦点尺寸值", focus_size)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'焦点尺寸值'替换为'{focus_size}'")
                                 replaced = True
-                            
+
                             if "铅增感屏值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("铅增感屏值", lead_screen)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'铅增感屏值'替换为'{lead_screen}'")
                                 replaced = True
-                            
+
                             if "胶片等级值" in paragraph.text:
                                 paragraph.text = paragraph.text.replace("胶片等级值", film_grade)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'胶片等级值'替换为'{film_grade}'")
                                 replaced = True
                             
                             # 新增的5个参数替换（表格单元格）
                             if "工程名称值" in paragraph.text and project_name:
                                 paragraph.text = paragraph.text.replace("工程名称值", project_name)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'工程名称值'替换为'{project_name}'")
                                 replaced = True
-                            
+
                             if "委托单位值" in paragraph.text and entrusting_unit:
                                 paragraph.text = paragraph.text.replace("委托单位值", entrusting_unit)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'委托单位值'替换为'{entrusting_unit}'")
                                 replaced = True
-                            
+
                             if "操作指导书编号值" in paragraph.text and operation_guide_number:
                                 paragraph.text = paragraph.text.replace("操作指导书编号值", operation_guide_number)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'操作指导书编号值'替换为'{operation_guide_number}'")
                                 replaced = True
-                            
+
                             if "承包单位值" in paragraph.text and contracting_unit:
                                 paragraph.text = paragraph.text.replace("承包单位值", contracting_unit)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'承包单位值'替换为'{contracting_unit}'")
                                 replaced = True
-                            
+
                             if "设备型号值" in paragraph.text and equipment_model:
                                 paragraph.text = paragraph.text.replace("设备型号值", equipment_model)
+                                set_font_style(paragraph)  # 设置楷体五号字体
                                 print(f"已将表格单元格中的'设备型号值'替换为'{equipment_model}'")
                                 replaced = True
             
@@ -498,35 +542,80 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                         for pattern in date_patterns:
                             if pattern in cell.text:
                                 print(f"找到{pattern}单元格: 表格行{i+1}, 列{j+1}")
-                                
+
                                 # 检查单元格中的所有段落
                                 date_found = False
                                 for paragraph in cell.paragraphs:
                                     if "年" in paragraph.text and "月" in paragraph.text and "日" in paragraph.text:
                                         print(f"找到日期段落: {paragraph.text}")
-                                        
-                                        # 创建新的文本，确保只有一个年月日
-                                        new_text = paragraph.text
-                                        # 确保年月日前没有数字
-                                        new_text = re.sub(r'\d*年', '年', new_text)
-                                        new_text = re.sub(r'\d*月', '月', new_text)
-                                        new_text = re.sub(r'\d*日', '日', new_text)
-                                        
-                                        # 在年月日前插入正确的数字
-                                        new_text = new_text.replace('年', f'{year}年')
-                                        new_text = new_text.replace('月', f'{month}月')
-                                        new_text = new_text.replace('日', f'{day}日')
-                                        
-                                        paragraph.text = new_text
+
+                                        # 清空段落内容，重新构建带格式的日期
+                                        paragraph.clear()
+
+                                        # 添加年份数字（楷体五号）
+                                        run_year = paragraph.add_run(str(year))
+                                        run_year.font.name = "楷体"
+                                        run_year.font.size = Pt(10.5)
+                                        run_year._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+
+                                        # 添加"年"字（保持原格式）
+                                        paragraph.add_run("年")
+
+                                        # 添加月份数字（楷体五号）
+                                        run_month = paragraph.add_run(str(month))
+                                        run_month.font.name = "楷体"
+                                        run_month.font.size = Pt(10.5)
+                                        run_month._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+
+                                        # 添加"月"字（保持原格式）
+                                        paragraph.add_run("月")
+
+                                        # 添加日期数字（楷体五号）
+                                        run_day = paragraph.add_run(str(day))
+                                        run_day.font.name = "楷体"
+                                        run_day.font.size = Pt(10.5)
+                                        run_day._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+
+                                        # 添加"日"字（保持原格式）
+                                        paragraph.add_run("日")
+
                                         date_found = True
                                         print(f"已更新{pattern}日期为 {year}年{month}月{day}日")
                                         break
-                                
+
                                 # 如果没有找到日期段落，尝试创建新段落
                                 if not date_found:
                                     print(f"未在{pattern}单元格中找到日期段落，尝试添加")
-                                    # 添加新段落
-                                    p = cell.add_paragraph(f"{year}年{month}月{day}日")
+                                    # 添加新段落并设置格式
+                                    p = cell.add_paragraph()
+
+                                    # 添加年份数字（楷体五号）
+                                    run_year = p.add_run(str(year))
+                                    run_year.font.name = "楷体"
+                                    run_year.font.size = Pt(10.5)
+                                    run_year._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+
+                                    # 添加"年"字（保持原格式）
+                                    p.add_run("年")
+
+                                    # 添加月份数字（楷体五号）
+                                    run_month = p.add_run(str(month))
+                                    run_month.font.name = "楷体"
+                                    run_month.font.size = Pt(10.5)
+                                    run_month._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+
+                                    # 添加"月"字（保持原格式）
+                                    p.add_run("月")
+
+                                    # 添加日期数字（楷体五号）
+                                    run_day = p.add_run(str(day))
+                                    run_day.font.name = "楷体"
+                                    run_day.font.size = Pt(10.5)
+                                    run_day._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+
+                                    # 添加"日"字（保持原格式）
+                                    p.add_run("日")
+
                                     print(f"已添加{pattern}日期: {year}年{month}月{day}日")
             
             # 查找表头行，确定各列的位置
@@ -645,8 +734,9 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                     cell = row.cells[col_idx]
                                     if cell.paragraphs:
                                         cell.paragraphs[0].text = str(inspection_numbers[i])
+                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
                                         print(f"已更新第{row_idx+1}行检件编号: {inspection_numbers[i]}")
-                            
+
                             # 2. 填写焊缝编号
                             if "焊缝编号" in column_indices and i < len(weld_numbers):
                                 col_idx = column_indices["焊缝编号"]
@@ -654,8 +744,9 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                     cell = row.cells[col_idx]
                                     if cell.paragraphs:
                                         cell.paragraphs[0].text = str(weld_numbers[i])
+                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
                                         print(f"已更新第{row_idx+1}行焊缝编号: {weld_numbers[i]}")
-                            
+
                             # 3. 填写焊工号
                             if "焊工号" in column_indices and i < len(welder_numbers):
                                 col_idx = column_indices["焊工号"]
@@ -663,6 +754,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                     cell = row.cells[col_idx]
                                     if cell.paragraphs:
                                         cell.paragraphs[0].text = str(welder_numbers[i])
+                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
                                         print(f"已更新第{row_idx+1}行焊工号: {welder_numbers[i]}")
                             
                             # 4. 填写备注（填入完成日期）
@@ -682,8 +774,9 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         
                                         if cell.paragraphs:
                                             cell.paragraphs[0].text = formatted_date
+                                            set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
                                             print(f"已更新第{row_idx+1}行备注（完成日期）: {formatted_date}")
-                            
+
                             # 5. 填写透照参数序号（规格数量）
                             if "透照参数序号" in column_indices:
                                 col_idx = column_indices["透照参数序号"]
@@ -695,6 +788,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                         # 直接填写规格总数，不再根据行号判断
                                         param_index = spec_count
                                         cell.paragraphs[0].text = str(param_index)
+                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
                                         print(f"已更新第{row_idx+1}行透照参数序号: {param_index}")
             
                     # 如果找到了规格列，在透照参数表中填写规格信息
@@ -716,6 +810,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                 cell = table.rows[start_row + i].cells[spec_column_index]
                                 if cell.paragraphs:
                                     cell.paragraphs[0].text = str(specifications[i])
+                                    set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
                                     print(f"已更新透照参数表第{start_row+i+1}行检件规格(mm×mm): {specifications[i]}")
                                     
                                     # 如果是X射线模式，则查找并填充X射线参数
@@ -740,6 +835,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                                     cell = table.rows[start_row + i].cells[col_idx]
                                                     if cell.paragraphs:
                                                         cell.paragraphs[0].text = str(value)
+                                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
                                                         print(f"已更新第{start_row+i+1}行{param_name}: {value}")
                                         else:
                                             print(f"未找到规格 {specifications[i]} 的X射线参数")
@@ -764,6 +860,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                                     cell = table.rows[start_row + i].cells[col_idx]
                                                     if cell.paragraphs:
                                                         cell.paragraphs[0].text = str(value)
+                                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
                                                         print(f"已更新第{start_row+i+1}行{param_name}: {value}")
                                         else:
                                             print(f"未找到规格 {specifications[i]} 的γ射线参数")
