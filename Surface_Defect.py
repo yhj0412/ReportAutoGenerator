@@ -549,19 +549,22 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                 # 1. 遍历段落
                 for paragraph in doc.paragraphs:
                     if project_name and "工程名称参数值" in paragraph.text:
-                        paragraph.text = paragraph.text.replace("工程名称参数值", project_name)
-                        set_kaiti_font(paragraph)
-                        print(f"已将段落中的'工程名称参数值'替换为'{project_name}'并设置为楷体五号字体")
+                        if replace_text_with_kaiti_font(paragraph, "工程名称参数值", project_name):
+                            print(f"已将段落中的'工程名称参数值'替换为'{project_name}'并只对新文本设置为楷体五号字体")
+                        else:
+                            print(f"警告: 未能替换段落中的'工程名称参数值'")
 
                     if client_name and "委托单位参数值" in paragraph.text:
-                        paragraph.text = paragraph.text.replace("委托单位参数值", client_name)
-                        set_kaiti_font(paragraph)
-                        print(f"已将段落中的'委托单位参数值'替换为'{client_name}'并设置为楷体五号字体")
+                        if replace_text_with_kaiti_font(paragraph, "委托单位参数值", client_name):
+                            print(f"已将段落中的'委托单位参数值'替换为'{client_name}'并只对新文本设置为楷体五号字体")
+                        else:
+                            print(f"警告: 未能替换段落中的'委托单位参数值'")
 
                     if inspection_method and "检测方法参数" in paragraph.text:
-                        paragraph.text = paragraph.text.replace("检测方法参数", inspection_method)
-                        set_kaiti_font(paragraph)
-                        print(f"已将段落中的'检测方法参数'替换为'{inspection_method}'并设置为楷体五号字体")
+                        if replace_text_with_kaiti_font(paragraph, "检测方法参数", inspection_method):
+                            print(f"已将段落中的'检测方法参数'替换为'{inspection_method}'并只对新文本设置为楷体五号字体")
+                        else:
+                            print(f"警告: 未能替换段落中的'检测方法参数'")
                 
                 # 2. 遍历表格中的单元格
                 for table in doc.tables:
@@ -569,33 +572,38 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                         for cell in row.cells:
                             for paragraph in cell.paragraphs:
                                 if project_name and "工程名称参数值" in paragraph.text:
-                                    paragraph.text = paragraph.text.replace("工程名称参数值", project_name)
-                                    set_kaiti_font(paragraph)
-                                    print(f"已将表格单元格中的'工程名称参数值'替换为'{project_name}'并设置为楷体五号字体")
+                                    if replace_text_with_kaiti_font(paragraph, "工程名称参数值", project_name):
+                                        print(f"已将表格单元格中的'工程名称参数值'替换为'{project_name}'并只对新文本设置为楷体五号字体")
+                                    else:
+                                        print(f"警告: 未能替换表格单元格中的'工程名称参数值'")
 
                                 if client_name and "委托单位参数值" in paragraph.text:
-                                    paragraph.text = paragraph.text.replace("委托单位参数值", client_name)
-                                    set_kaiti_font(paragraph)
-                                    print(f"已将表格单元格中的'委托单位参数值'替换为'{client_name}'并设置为楷体五号字体")
+                                    if replace_text_with_kaiti_font(paragraph, "委托单位参数值", client_name):
+                                        print(f"已将表格单元格中的'委托单位参数值'替换为'{client_name}'并只对新文本设置为楷体五号字体")
+                                    else:
+                                        print(f"警告: 未能替换表格单元格中的'委托单位参数值'")
 
                                 if inspection_method and "检测方法参数" in paragraph.text:
-                                    paragraph.text = paragraph.text.replace("检测方法参数", inspection_method)
-                                    set_kaiti_font(paragraph)
-                                    print(f"已将表格单元格中的'检测方法参数'替换为'{inspection_method}'并设置为楷体五号字体")
+                                    if replace_text_with_kaiti_font(paragraph, "检测方法参数", inspection_method):
+                                        print(f"已将表格单元格中的'检测方法参数'替换为'{inspection_method}'并只对新文本设置为楷体五号字体")
+                                    else:
+                                        print(f"警告: 未能替换表格单元格中的'检测方法参数'")
                 
                 print("==== 参数值替换完成 ====\n")
             
             # 替换段落中的参数值
             for paragraph in doc.paragraphs:
                 if unit_name and "单元名称值" in paragraph.text:
-                    paragraph.text = paragraph.text.replace("单元名称值", unit_name)
-                    set_kaiti_font(paragraph)
-                    print(f"已将段落中的'单元名称值'替换为'{unit_name}'并设置为楷体五号字体")
+                    if replace_text_with_kaiti_font(paragraph, "单元名称值", unit_name):
+                        print(f"已将段落中的'单元名称值'替换为'{unit_name}'并只对新文本设置为楷体五号字体")
+                    else:
+                        print(f"警告: 未能替换段落中的'单元名称值'")
 
                 if detection_method and "检测方法值" in paragraph.text:
-                    paragraph.text = paragraph.text.replace("检测方法值", detection_method)
-                    set_kaiti_font(paragraph)
-                    print(f"已将段落中的'检测方法值'替换为'{detection_method}'并设置为楷体五号字体")
+                    if replace_text_with_kaiti_font(paragraph, "检测方法值", detection_method):
+                        print(f"已将段落中的'检测方法值'替换为'{detection_method}'并只对新文本设置为楷体五号字体")
+                    else:
+                        print(f"警告: 未能替换段落中的'检测方法值'")
 
                 if detection_level and "检测级别值" in paragraph.text:
                     if replace_text_with_kaiti_font(paragraph, "检测级别值", detection_level):
@@ -604,9 +612,10 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                         print(f"警告: 未能替换段落中的'检测级别值'")
 
                 if "委托单号编号值" in paragraph.text:
-                    paragraph.text = paragraph.text.replace("委托单号编号值", str(order_number))
-                    set_kaiti_font(paragraph)
-                    print(f"已将段落中的'委托单号编号值'替换为'{order_number}'并设置为楷体五号字体")
+                    if replace_text_with_kaiti_font(paragraph, "委托单号编号值", str(order_number)):
+                        print(f"已将段落中的'委托单号编号值'替换为'{order_number}'并只对新文本设置为楷体五号字体")
+                    else:
+                        print(f"警告: 未能替换段落中的'委托单号编号值'")
             
             # 遍历表格中的单元格替换参数值
             for table in doc.tables:
@@ -614,14 +623,16 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                     for cell in row.cells:
                         for paragraph in cell.paragraphs:
                             if unit_name and "单元名称值" in paragraph.text:
-                                paragraph.text = paragraph.text.replace("单元名称值", unit_name)
-                                set_kaiti_font(paragraph)
-                                print(f"已将表格单元格中的'单元名称值'替换为'{unit_name}'并设置为楷体五号字体")
+                                if replace_text_with_kaiti_font(paragraph, "单元名称值", unit_name):
+                                    print(f"已将表格单元格中的'单元名称值'替换为'{unit_name}'并只对新文本设置为楷体五号字体")
+                                else:
+                                    print(f"警告: 未能替换表格单元格中的'单元名称值'")
 
                             if detection_method and "检测方法值" in paragraph.text:
-                                paragraph.text = paragraph.text.replace("检测方法值", detection_method)
-                                set_kaiti_font(paragraph)
-                                print(f"已将表格单元格中的'检测方法值'替换为'{detection_method}'并设置为楷体五号字体")
+                                if replace_text_with_kaiti_font(paragraph, "检测方法值", detection_method):
+                                    print(f"已将表格单元格中的'检测方法值'替换为'{detection_method}'并只对新文本设置为楷体五号字体")
+                                else:
+                                    print(f"警告: 未能替换表格单元格中的'检测方法值'")
 
                             if detection_level and "检测级别值" in paragraph.text:
                                 if replace_text_with_kaiti_font(paragraph, "检测级别值", detection_level):
@@ -630,9 +641,10 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                                     print(f"警告: 未能替换表格单元格中的'检测级别值'")
 
                             if "委托单号编号值" in paragraph.text:
-                                paragraph.text = paragraph.text.replace("委托单号编号值", str(order_number))
-                                set_kaiti_font(paragraph)
-                                print(f"已将表格单元格中的'委托单号编号值'替换为'{order_number}'并设置为楷体五号字体")
+                                if replace_text_with_kaiti_font(paragraph, "委托单号编号值", str(order_number)):
+                                    print(f"已将表格单元格中的'委托单号编号值'替换为'{order_number}'并只对新文本设置为楷体五号字体")
+                                else:
+                                    print(f"警告: 未能替换表格单元格中的'委托单号编号值'")
             
             # 填写通知单编号（委托单编号）
             notification_number_updated = False
@@ -752,9 +764,53 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                             # 否则直接在文本后添加单元名称
                             new_text = new_text + " " + unit_name
                         
-                        paragraph.text = new_text
-                        set_kaiti_font(paragraph)
-                        print(f"已将单元名称 {unit_name} 添加到单位工程名称段落并设置为楷体五号字体")
+                        # 保存原有格式
+                        original_font_name = None
+                        original_font_size = None
+                        original_bold = None
+                        original_italic = None
+                        original_underline = None
+
+                        if paragraph.runs:
+                            first_run = paragraph.runs[0]
+                            original_font_name = first_run.font.name
+                            original_font_size = first_run.font.size
+                            original_bold = first_run.bold
+                            original_italic = first_run.italic
+                            original_underline = first_run.underline
+
+                        # 清除段落内容
+                        paragraph.clear()
+
+                        # 分割文本，找到单元名称的位置
+                        if unit_name in new_text:
+                            parts = new_text.split(unit_name)
+
+                            # 重新构建段落
+                            for i, part in enumerate(parts):
+                                if i > 0:
+                                    # 添加单元名称（楷体五号）
+                                    unit_run = paragraph.add_run(unit_name)
+                                    unit_run.font.name = "楷体"
+                                    unit_run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                    unit_run.font.size = Pt(10.5)
+
+                                if part:  # 如果部分不为空，添加原文本
+                                    text_run = paragraph.add_run(part)
+                                    # 使用原有格式
+                                    text_run.font.name = original_font_name
+                                    text_run.font.size = original_font_size
+                                    if original_bold is not None:
+                                        text_run.bold = original_bold
+                                    if original_italic is not None:
+                                        text_run.italic = original_italic
+                                    if original_underline is not None:
+                                        text_run.underline = original_underline
+                        else:
+                            # 如果没有找到单元名称，直接设置文本
+                            paragraph.text = new_text
+
+                        print(f"已将单元名称 {unit_name} 添加到单位工程名称段落并只对单元名称设置为楷体五号字体")
             
             # 处理表格
             for table in doc.tables:
