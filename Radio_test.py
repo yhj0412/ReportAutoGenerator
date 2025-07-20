@@ -326,7 +326,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                 focus_size = "2.5*2.5"
                 lead_screen = "0.03*2"
                 film_grade = "锐科R400"
-                ray_source = ""  # 当γ射线的值为空时，射源种类值也设置为空
+                ray_source = "X射线"  # 当γ射线的值为空时，射源种类值也设置为X射线
             
             print(f"射线类型: {ray_type}, 焦点尺寸: {focus_size}, 铅增感屏: {lead_screen}, 胶片等级: {film_grade}, 射源种类值: {ray_source}")
             
@@ -535,13 +535,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                 header_row_index = -1
                 
                 # 添加完整的表格内容打印，帮助调试
-                print("\n调试：打印表格内容以找到规格列")
+                # print("\n调试：打印表格内容以找到规格列")
                 for i, row in enumerate(table.rows):
                     row_text = []
                     for j, cell in enumerate(row.cells):
                         row_text.append(f"[{j}]'{cell.text}'")
-                    if len(row_text) > 0:  # 只打印非空行
-                        print(f"行 {i}: {', '.join(row_text)}")
+                    # if len(row_text) > 0:  # 只打印非空行
+                    #     print(f"行 {i}: {', '.join(row_text)}")
                 
                 # 查找规格表头(mm×mm)位于第10行左右，检件编号等位于第18行左右
                 spec_column_index = -1
