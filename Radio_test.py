@@ -7,6 +7,8 @@ from docx.shared import Pt
 from docx.oxml.ns import qn
 from datetime import datetime
 import re
+from dataclasses import dataclass
+from typing import Dict, List, Tuple, Optional
 
 def find_column_with_keyword(df, keyword):
     """查找包含指定关键字的列"""
@@ -36,6 +38,543 @@ def normalize_text(text):
     # 转换为小写
     normalized = normalized.lower()
     return normalized
+
+# ==================== 双列表格支持功能 ====================
+
+@dataclass
+class TableStructure:
+    """表格结构数据模型"""
+    format_type: str  # 'single_column' 或 'double_column'
+    left_columns: Dict[str, int]  # 左侧列映射
+    right_columns: Dict[str, int]  # 右侧列映射（单列时为空）
+    data_start_row: int  # 数据开始行
+    max_rows_per_side: int  # 每侧最大行数
+    total_capacity: int  # 总容量
+
+@dataclass
+class DataAllocation:
+    """数据分配数据模型"""
+    left_data: List[Dict]  # 左侧数据
+    right_data: List[Dict]  # 右侧数据
+    left_numbers: List[int]  # 左侧序号
+    right_numbers: List[int]  # 右侧序号
+
+def detect_table_format(table) -> str:
+    """
+    检测表格格式
+
+    Args:
+        table: Word表格对象
+
+    Returns:
+        str: 'single_column' 或 'double_column'
+    """
+    try:
+        # 检测关键字
+        key_columns = ['检件编号', '焊缝编号', '焊工号', '序号']
+        column_counts = {}
+
+        print(f"开始检测表格格式，表格共有{len(table.rows)}行")
+
+        # 首先查找"检测部位信息"行
+        detection_info_row = -1
+        for row_idx in range(len(table.rows)):
+            row = table.rows[row_idx]
+            for cell in row.cells:
+                if "检测部位信息" in cell.text.strip():
+                    detection_info_row = row_idx
+                    print(f"找到检测部位信息表格在第{row_idx+1}行")
+                    break
+            if detection_info_row >= 0:
+                break
+
+        # 如果找到检测部位信息行，检查下一行的表头
+        if detection_info_row >= 0 and detection_info_row + 1 < len(table.rows):
+            header_row_idx = detection_info_row + 1
+            row = table.rows[header_row_idx]
+            print(f"检查表头行第{header_row_idx+1}行，共{len(row.cells)}列")
+
+            for cell_idx, cell in enumerate(row.cells):
+                cell_text = cell.text.strip()
+                if cell_text:  # 只处理非空单元格
+                    for key_col in key_columns:
+                        if key_col in cell_text:
+                            column_counts[key_col] = column_counts.get(key_col, 0) + 1
+                            print(f"在第{header_row_idx+1}行第{cell_idx+1}列找到'{key_col}': {cell_text}")
+        else:
+            # 如果没找到检测部位信息行，使用原来的逻辑检查前几行
+            print("未找到检测部位信息行，使用通用检测逻辑")
+            search_rows = min(20, len(table.rows))  # 扩大搜索范围到前20行
+            for row_idx in range(search_rows):
+                row = table.rows[row_idx]
+
+                for cell_idx, cell in enumerate(row.cells):
+                    cell_text = cell.text.strip()
+                    if cell_text:  # 只处理非空单元格
+                        for key_col in key_columns:
+                            if key_col in cell_text:
+                                column_counts[key_col] = column_counts.get(key_col, 0) + 1
+                                print(f"在第{row_idx+1}行第{cell_idx+1}列找到'{key_col}': {cell_text}")
+
+        # 如果任何关键列出现2次或以上，则认为是双列表格
+        # 特别关注序号列，如果序号出现3次以上，很可能是双列
+        is_double_column = any(count >= 2 for count in column_counts.values())
+
+        # 额外检查：如果序号出现3次以上，更可能是双列
+        if column_counts.get('序号', 0) >= 3:
+            is_double_column = True
+            print(f"检测到多个序号列({column_counts.get('序号', 0)}个)，判断为双列表格")
+
+        format_type = 'double_column' if is_double_column else 'single_column'
+        print(f"检测到表格格式: {format_type}")
+        print(f"关键列统计: {column_counts}")
+
+        return format_type
+
+    except Exception as e:
+        print(f"检测表格格式时出错: {e}")
+        print("回退到单列格式")
+        return 'single_column'
+
+def analyze_double_column_structure(table) -> Optional[TableStructure]:
+    """
+    分析双列表格结构
+
+    Args:
+        table: Word表格对象
+
+    Returns:
+        TableStructure: 表格结构信息，如果分析失败返回None
+    """
+    try:
+        print("开始分析双列表格结构...")
+        left_columns = {}
+        right_columns = {}
+        header_row_index = -1
+
+        # 首先查找"检测部位信息"行
+        detection_info_row = -1
+        for row_idx in range(len(table.rows)):
+            row = table.rows[row_idx]
+            for cell in row.cells:
+                if "检测部位信息" in cell.text.strip():
+                    detection_info_row = row_idx
+                    print(f"找到检测部位信息表格在第{row_idx+1}行")
+                    break
+            if detection_info_row >= 0:
+                break
+
+        # 如果找到检测部位信息行，分析下一行的表头
+        if detection_info_row >= 0 and detection_info_row + 1 < len(table.rows):
+            header_row_index = detection_info_row + 1
+            row = table.rows[header_row_index]
+            found_columns = {}
+            print(f"分析表头行第{header_row_index+1}行，共{len(row.cells)}列")
+
+            for j, cell in enumerate(row.cells):
+                cell_text = cell.text.strip()
+
+                # 检测关键列
+                if "序号" in cell_text:
+                    if "序号" not in found_columns:
+                        found_columns["序号"] = [j]
+                    else:
+                        found_columns["序号"].append(j)
+                    print(f"找到序号列: 第{header_row_index+1}行第{j+1}列")
+                elif "检件编号" in cell_text:
+                    if "检件编号" not in found_columns:
+                        found_columns["检件编号"] = [j]
+                    else:
+                        found_columns["检件编号"].append(j)
+                    print(f"找到检件编号列: 第{header_row_index+1}行第{j+1}列")
+                elif "焊缝编号" in cell_text or "焊口编号" in cell_text:
+                    key = "焊缝编号"
+                    if key not in found_columns:
+                        found_columns[key] = [j]
+                    else:
+                        found_columns[key].append(j)
+                    print(f"找到焊缝编号列: 第{header_row_index+1}行第{j+1}列")
+                elif "焊工号" in cell_text:
+                    if "焊工号" not in found_columns:
+                        found_columns["焊工号"] = [j]
+                    else:
+                        found_columns["焊工号"].append(j)
+                    print(f"找到焊工号列: 第{header_row_index+1}行第{j+1}列")
+                elif "透照参数序号" in cell_text:
+                    if "透照参数序号" not in found_columns:
+                        found_columns["透照参数序号"] = [j]
+                    else:
+                        found_columns["透照参数序号"].append(j)
+                    print(f"找到透照参数序号列: 第{header_row_index+1}行第{j+1}列")
+                elif "备注" in cell_text:
+                    if "备注" not in found_columns:
+                        found_columns["备注"] = [j]
+                    else:
+                        found_columns["备注"].append(j)
+                    print(f"找到备注列: 第{header_row_index+1}行第{j+1}列")
+
+            # 分配左右列 - 基于新模板的实际结构
+            # 新模板结构：序号@列1, 检件编号@列2-11, 焊工号@列16-20, 序号@列21-23, 序号@列31, 检件编号@列32-41, 焊工号@列44-47, 序号@列48-49
+            if found_columns:
+                # 根据实际观察到的列位置分配左右侧
+                for col_name, col_indices in found_columns.items():
+                    if col_name == "序号":
+                        # 序号列：左侧取第一个，右侧取后面的
+                        if len(col_indices) >= 2:
+                            left_columns[col_name] = col_indices[0]  # 第一个序号列作为左侧
+                            # 找到中间位置的序号列作为右侧
+                            middle_idx = len(col_indices) // 2
+                            right_columns[col_name] = col_indices[middle_idx]
+                    elif col_name == "检件编号":
+                        # 检件编号列：左侧取前面的，右侧取后面的
+                        if len(col_indices) >= 2:
+                            left_columns[col_name] = col_indices[0]  # 第一个检件编号列作为左侧
+                            # 找到后半部分的检件编号列作为右侧
+                            right_start = len(col_indices) // 2
+                            right_columns[col_name] = col_indices[right_start]
+                    elif col_name == "焊工号":
+                        # 焊工号列：左侧取前面的，右侧取后面的
+                        if len(col_indices) >= 2:
+                            left_columns[col_name] = col_indices[0]  # 第一个焊工号列作为左侧
+                            right_columns[col_name] = col_indices[-1]  # 最后一个焊工号列作为右侧
+                    else:
+                        # 其他列：如果有多个，分配给左右侧
+                        if len(col_indices) >= 2:
+                            left_columns[col_name] = col_indices[0]
+                            right_columns[col_name] = col_indices[1]
+                        elif len(col_indices) == 1:
+                            # 如果只有一个，根据位置判断是左侧还是右侧
+                            col_idx = col_indices[0]
+                            total_cols = len(row.cells)
+                            if col_idx < total_cols // 2:
+                                left_columns[col_name] = col_idx
+                            else:
+                                right_columns[col_name] = col_idx
+
+                print(f"找到双列表头行: 第{header_row_index+1}行")
+                print(f"左侧列映射: {left_columns}")
+                print(f"右侧列映射: {right_columns}")
+        else:
+            print("未找到检测部位信息行，尝试通用方法...")
+            # 回退到原来的通用方法
+            for i, row in enumerate(table.rows):
+                found_columns = {}
+                print(f"分析第{i+1}行，共{len(row.cells)}列")
+
+                for j, cell in enumerate(row.cells):
+                    cell_text = cell.text.strip()
+
+                    # 检测关键列
+                    if "序号" in cell_text:
+                        if "序号" not in found_columns:
+                            found_columns["序号"] = [j]
+                        else:
+                            found_columns["序号"].append(j)
+                        print(f"找到序号列: 第{i+1}行第{j+1}列")
+                    elif "检件编号" in cell_text:
+                        if "检件编号" not in found_columns:
+                            found_columns["检件编号"] = [j]
+                        else:
+                            found_columns["检件编号"].append(j)
+                        print(f"找到检件编号列: 第{i+1}行第{j+1}列")
+
+                # 如果找到了双列结构，设置列映射
+                if any(len(cols) >= 2 for cols in found_columns.values()):
+                    header_row_index = i
+
+                    # 分配左右列
+                    for col_name, col_indices in found_columns.items():
+                        if len(col_indices) >= 2:
+                            left_columns[col_name] = col_indices[0]
+                            right_columns[col_name] = col_indices[1]
+
+                    print(f"找到双列表头行: 第{header_row_index+1}行")
+                    print(f"左侧列映射: {left_columns}")
+                    print(f"右侧列映射: {right_columns}")
+                    break
+
+        if header_row_index < 0:
+            print("未找到有效的双列表头行")
+            return None
+
+        # 计算数据行范围
+        data_start_row = header_row_index + 1
+        max_rows_per_side = 0
+
+        # 计算每侧的最大行数
+        for i in range(data_start_row, len(table.rows)):
+            if i < len(table.rows):
+                # 检查是否遇到"以下空白"行
+                if len(table.rows[i].cells) > 0 and "以下空白" in table.rows[i].cells[0].text:
+                    break
+                max_rows_per_side += 1
+
+        # 双列表格的总容量是每侧行数的两倍
+        total_capacity = max_rows_per_side * 2
+
+        return TableStructure(
+            format_type='double_column',
+            left_columns=left_columns,
+            right_columns=right_columns,
+            data_start_row=data_start_row,
+            max_rows_per_side=max_rows_per_side,
+            total_capacity=total_capacity
+        )
+
+    except Exception as e:
+        print(f"分析双列表格结构时出错: {e}")
+        return None
+
+def allocate_data_to_columns(data_list: List[Dict], left_capacity: int, right_capacity: int) -> DataAllocation:
+    """
+    分配数据到左右两侧
+
+    Args:
+        data_list: 要分配的数据列表
+        left_capacity: 左侧容量
+        right_capacity: 右侧容量
+
+    Returns:
+        DataAllocation: 数据分配结果
+    """
+    total_data = len(data_list)
+
+    # 优先填充左侧
+    left_count = min(total_data, left_capacity)
+    left_data = data_list[:left_count]
+
+    # 剩余数据填充右侧
+    remaining_data = data_list[left_count:]
+    right_count = min(len(remaining_data), right_capacity)
+    right_data = remaining_data[:right_count]
+
+    # 生成连续序号
+    left_numbers = list(range(1, left_count + 1))
+    right_numbers = list(range(left_count + 1, left_count + right_count + 1))
+
+    # 检查是否有溢出数据
+    overflow_count = total_data - left_count - right_count
+    if overflow_count > 0:
+        print(f"警告: 有{overflow_count}行数据超出表格容量，将被忽略")
+
+    print(f"数据分配: 左侧{left_count}行，右侧{right_count}行，总计{left_count + right_count}行")
+
+    return DataAllocation(
+        left_data=left_data,
+        right_data=right_data,
+        left_numbers=left_numbers,
+        right_numbers=right_numbers
+    )
+
+def fill_double_column_table(table, structure: TableStructure, data_allocation: DataAllocation,
+                           inspection_numbers: List, weld_numbers: List, welder_numbers: List,
+                           date_col: str, group_df, specifications: List) -> bool:
+    """
+    填充双列表格
+
+    Args:
+        table: Word表格对象
+        structure: 表格结构信息
+        data_allocation: 数据分配信息
+        inspection_numbers: 检件编号列表
+        weld_numbers: 焊缝编号列表
+        welder_numbers: 焊工号列表
+        date_col: 日期列名
+        group_df: 数据DataFrame
+        specifications: 规格列表
+
+    Returns:
+        bool: 填充是否成功
+    """
+    try:
+        print("开始填充双列表格...")
+
+        # 计算总数据量和分配
+        total_data_count = len(inspection_numbers)
+        left_data_count = len(data_allocation.left_data)
+        right_data_count = len(data_allocation.right_data)
+
+        print(f"总数据量: {total_data_count}, 左侧: {left_data_count}, 右侧: {right_data_count}")
+
+        # 确保有足够的行
+        max_rows_needed = max(left_data_count, right_data_count)
+        for i in range(max_rows_needed):
+            row_idx = structure.data_start_row + i
+            if row_idx >= len(table.rows):
+                table.add_row()
+
+        # 第一步：填充所有序号（先左侧，再右侧，保持连续性）
+        print("第一步：填充序号...")
+
+        # 填充左侧序号
+        for i in range(left_data_count):
+            row_idx = structure.data_start_row + i
+            row = table.rows[row_idx]
+            seq_num = data_allocation.left_numbers[i]
+
+            if "序号" in structure.left_columns:
+                col_idx = structure.left_columns["序号"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if cell.paragraphs:
+                        cell.paragraphs[0].text = str(seq_num)
+                        set_font_style(cell.paragraphs[0])
+                        print(f"左侧第{row_idx+1}行序号: {seq_num}")
+
+        # 填充右侧序号
+        for i in range(right_data_count):
+            row_idx = structure.data_start_row + i
+            row = table.rows[row_idx]
+            seq_num = data_allocation.right_numbers[i]
+
+            if "序号" in structure.right_columns:
+                col_idx = structure.right_columns["序号"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if cell.paragraphs:
+                        cell.paragraphs[0].text = str(seq_num)
+                        set_font_style(cell.paragraphs[0])
+                        print(f"右侧第{row_idx+1}行序号: {seq_num}")
+
+        # 第二步：填充左侧表格的其他数据
+        print("第二步：填充左侧表格数据...")
+        for i in range(left_data_count):
+            row_idx = structure.data_start_row + i
+            row = table.rows[row_idx]
+            data_idx = i  # 左侧数据的索引就是i
+
+            # 填充检件编号
+            if "检件编号" in structure.left_columns and data_idx < len(inspection_numbers):
+                col_idx = structure.left_columns["检件编号"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if cell.paragraphs:
+                        cell.paragraphs[0].text = str(inspection_numbers[data_idx])
+                        set_font_style(cell.paragraphs[0])
+                        print(f"左侧第{row_idx+1}行检件编号: {inspection_numbers[data_idx]}")
+
+            # 填充焊缝编号
+            if "焊缝编号" in structure.left_columns and data_idx < len(weld_numbers):
+                col_idx = structure.left_columns["焊缝编号"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if cell.paragraphs:
+                        cell.paragraphs[0].text = str(weld_numbers[data_idx])
+                        set_font_style(cell.paragraphs[0])
+                        print(f"左侧第{row_idx+1}行焊缝编号: {weld_numbers[data_idx]}")
+
+            # 填充焊工号
+            if "焊工号" in structure.left_columns and data_idx < len(welder_numbers):
+                col_idx = structure.left_columns["焊工号"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if cell.paragraphs:
+                        cell.paragraphs[0].text = str(welder_numbers[data_idx])
+                        set_font_style(cell.paragraphs[0])
+                        print(f"左侧第{row_idx+1}行焊工号: {welder_numbers[data_idx]}")
+
+            # 填充备注（完成日期）
+            if "备注" in structure.left_columns and date_col and data_idx < len(group_df):
+                col_idx = structure.left_columns["备注"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if not pd.isna(group_df[date_col].iloc[data_idx]):
+                        date_value = group_df[date_col].iloc[data_idx]
+                        if isinstance(date_value, pd.Timestamp):
+                            formatted_date = date_value.strftime("%Y年%m月%d日")
+                        else:
+                            formatted_date = str(date_value)
+
+                        if cell.paragraphs:
+                            cell.paragraphs[0].text = formatted_date
+                            set_font_style(cell.paragraphs[0])
+                            print(f"左侧第{row_idx+1}行备注: {formatted_date}")
+
+            # 填充透照参数序号
+            if "透照参数序号" in structure.left_columns:
+                col_idx = structure.left_columns["透照参数序号"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if cell.paragraphs:
+                        spec_count = len(specifications)
+                        cell.paragraphs[0].text = str(spec_count)
+                        set_font_style(cell.paragraphs[0])
+                        print(f"左侧第{row_idx+1}行透照参数序号: {spec_count}")
+
+        # 第三步：填充右侧表格的其他数据
+        print("第三步：填充右侧表格数据...")
+        for i in range(right_data_count):
+            row_idx = structure.data_start_row + i
+            row = table.rows[row_idx]
+            data_idx = left_data_count + i  # 右侧数据的实际索引
+
+            # 填充检件编号
+            if "检件编号" in structure.right_columns and data_idx < len(inspection_numbers):
+                col_idx = structure.right_columns["检件编号"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if cell.paragraphs:
+                        cell.paragraphs[0].text = str(inspection_numbers[data_idx])
+                        set_font_style(cell.paragraphs[0])
+                        print(f"右侧第{row_idx+1}行检件编号: {inspection_numbers[data_idx]}")
+
+            # 填充焊缝编号
+            if "焊缝编号" in structure.right_columns and data_idx < len(weld_numbers):
+                col_idx = structure.right_columns["焊缝编号"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if cell.paragraphs:
+                        cell.paragraphs[0].text = str(weld_numbers[data_idx])
+                        set_font_style(cell.paragraphs[0])
+                        print(f"右侧第{row_idx+1}行焊缝编号: {weld_numbers[data_idx]}")
+
+            # 填充焊工号
+            if "焊工号" in structure.right_columns and data_idx < len(welder_numbers):
+                col_idx = structure.right_columns["焊工号"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if cell.paragraphs:
+                        cell.paragraphs[0].text = str(welder_numbers[data_idx])
+                        set_font_style(cell.paragraphs[0])
+                        print(f"右侧第{row_idx+1}行焊工号: {welder_numbers[data_idx]}")
+
+            # 填充备注（完成日期）
+            if "备注" in structure.right_columns and date_col and data_idx < len(group_df):
+                col_idx = structure.right_columns["备注"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if not pd.isna(group_df[date_col].iloc[data_idx]):
+                        date_value = group_df[date_col].iloc[data_idx]
+                        if isinstance(date_value, pd.Timestamp):
+                            formatted_date = date_value.strftime("%Y年%m月%d日")
+                        else:
+                            formatted_date = str(date_value)
+
+                        if cell.paragraphs:
+                            cell.paragraphs[0].text = formatted_date
+                            set_font_style(cell.paragraphs[0])
+                            print(f"右侧第{row_idx+1}行备注: {formatted_date}")
+
+            # 填充透照参数序号
+            if "透照参数序号" in structure.right_columns:
+                col_idx = structure.right_columns["透照参数序号"]
+                if col_idx < len(row.cells):
+                    cell = row.cells[col_idx]
+                    if cell.paragraphs:
+                        spec_count = len(specifications)
+                        cell.paragraphs[0].text = str(spec_count)
+                        set_font_style(cell.paragraphs[0])
+                        print(f"右侧第{row_idx+1}行透照参数序号: {spec_count}")
+
+        print("双列表格填充完成")
+        print(f"填充总结: 左侧{left_data_count}行，右侧{right_data_count}行，序号连续从1到{left_data_count + right_data_count}")
+        return True
+
+    except Exception as e:
+        print(f"填充双列表格时出错: {e}")
+        return False
+
+# ==================== 双列表格支持功能结束 ====================
 
 def find_detection_timing_options(doc):
     """在Word文档中查找检测时机相关的复选框选项"""
@@ -1391,18 +1930,11 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
             
             # 查找表头行，确定各列的位置
             for table in doc.tables:
-                column_indices = {}
-                header_row_index = -1
-                
-                # 添加完整的表格内容打印，帮助调试
-                # print("\n调试：打印表格内容以找到规格列")
-                for i, row in enumerate(table.rows):
-                    row_text = []
-                    for j, cell in enumerate(row.cells):
-                        row_text.append(f"[{j}]'{cell.text}'")
-                    # if len(row_text) > 0:  # 只打印非空行
-                    #     print(f"行 {i}: {', '.join(row_text)}")
-                
+                print(f"\n==== 开始处理表格 ====")
+
+                # 检测表格格式（单列或双列）
+                table_format = detect_table_format(table)
+
                 # 查找规格表头(mm×mm)位于第10行左右，检件编号等位于第18行左右
                 spec_column_index = -1
                 for i in range(9, 12):  # 在第9-11行范围内查找规格列
@@ -1413,233 +1945,273 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                 spec_column_index = j
                                 print(f"找到规格列（透照参数表格）：第{i+1}行，第{j+1}列，文本：{cell_text}")
                                 break
-                
-                # 查找包含"检件编号"、"焊缝编号"、"焊工号"的行
-                for i, row in enumerate(table.rows):
-                    header_found = False
-                    for j, cell in enumerate(row.cells):
-                        cell_text = cell.text.strip()
-                        
-                        # 添加更详细的调试信息，输出表格单元格文本内容
-                        if "检件规格" in cell_text or "规格" in cell_text:
-                            print(f"找到可能的规格列： 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
-                        
-                        if "检件编号" in cell_text:
-                            column_indices["检件编号"] = j
-                            header_row_index = i
-                            header_found = True
-                            print(f"找到检件编号列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
-                        elif "焊缝编号" in cell_text or "焊口编号" in cell_text:
-                            column_indices["焊口编号"] = j
-                            header_found = True
-                            print(f"找到焊缝编号列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
-                        elif "焊工号" in cell_text:
-                            column_indices["焊工号"] = j
-                            header_found = True
-                            print(f"找到焊工号列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
-                        elif "备注" in cell_text:
-                            column_indices["备注"] = j
-                            header_found = True
-                            print(f"找到备注列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
-                        elif "检件规格" in cell_text or "规格" in cell_text or "检件规格(mm×mm)" in cell_text or "检件规格(mm*mm)" in cell_text or "检件规格(mm" in cell_text:
-                            column_indices["检件规格"] = j
-                            header_found = True
-                            print(f"找到检件规格列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
-                        elif "透照参数序号" in cell_text:
-                            column_indices["透照参数序号"] = j
-                            header_found = True
-                            print(f"找到透照参数序号列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
-                    
-                    if header_found and header_row_index >= 0:
-                        print(f"找到表头行: 第{header_row_index+1}行")
-                        
-                        # 将"焊口编号"的键名更新为"焊缝编号"以保持一致性
-                        if "焊口编号" in column_indices:
-                            column_indices["焊缝编号"] = column_indices.pop("焊口编号")
-                            
-                        print(f"列索引: {column_indices}")
-                        break
-                
-                # 如果找到表头行，处理数据填充
-                if header_row_index >= 0 and column_indices:
-                    # 获取可用于填充数据的行
-                    data_rows = []
-                    for i in range(header_row_index + 1, len(table.rows)):
-                        if i < len(table.rows):
-                            # 检查是否是空行或包含特殊标记的行
-                            if "以下空白" in table.rows[i].cells[0].text if len(table.rows[i].cells) > 0 else False:
-                                print(f"找到'以下空白'行: 第{i+1}行")
-                                break
-                            # 添加可用于填充数据的行
-                            data_rows.append(i)
-                    
-                    print(f"找到{len(data_rows)}行可用于填充数据")
-                    
-                    # 确定需要填充的数据行数
-                    data_count = len(group_df)
-                    print(f"需要填充{data_count}行数据")
-                    
-                    # 如果Word表格中的行数不足，需要添加新行
-                    rows_needed = data_count - len(data_rows)
-                    if rows_needed > 0:
-                        print(f"需要添加{rows_needed}行到表格中")
-                        # 找到最后一行的索引
-                        last_row_idx = data_rows[-1] if data_rows else header_row_index
-                        
-                        # 添加新行
-                        for _ in range(rows_needed):
-                            # 在表格末尾添加一行
-                            new_row = table.add_row()
-                            data_rows.append(len(table.rows) - 1)  # 添加新行的索引
-                    
-                    # 处理每一行数据
-                    for i in range(data_count):
-                        if i < len(data_rows):
-                            row_idx = data_rows[i]
-                            row = table.rows[row_idx]
-                            
-                            # 1. 填写检件编号
-                            if "检件编号" in column_indices and i < len(inspection_numbers):
-                                col_idx = column_indices["检件编号"]
-                                if col_idx < len(row.cells):
-                                    cell = row.cells[col_idx]
-                                    if cell.paragraphs:
-                                        cell.paragraphs[0].text = str(inspection_numbers[i])
-                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
-                                        print(f"已更新第{row_idx+1}行检件编号: {inspection_numbers[i]}")
 
-                            # 2. 填写焊缝编号
-                            if "焊缝编号" in column_indices and i < len(weld_numbers):
-                                col_idx = column_indices["焊缝编号"]
-                                if col_idx < len(row.cells):
-                                    cell = row.cells[col_idx]
-                                    if cell.paragraphs:
-                                        cell.paragraphs[0].text = str(weld_numbers[i])
-                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
-                                        print(f"已更新第{row_idx+1}行焊缝编号: {weld_numbers[i]}")
+                # 根据表格格式选择处理方式
+                if table_format == 'double_column':
+                    print("使用双列表格处理模式")
+                    # 分析双列表格结构
+                    structure = analyze_double_column_structure(table)
+                    if structure:
+                        # 准备数据
+                        data_list = []
+                        for i in range(len(group_df)):
+                            data_list.append({'index': i})
 
-                            # 3. 填写焊工号
-                            if "焊工号" in column_indices and i < len(welder_numbers):
-                                col_idx = column_indices["焊工号"]
-                                if col_idx < len(row.cells):
-                                    cell = row.cells[col_idx]
-                                    if cell.paragraphs:
-                                        cell.paragraphs[0].text = str(welder_numbers[i])
-                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
-                                        print(f"已更新第{row_idx+1}行焊工号: {welder_numbers[i]}")
-                            
-                            # 4. 填写备注（填入完成日期）
-                            if "备注" in column_indices and date_col and i < len(group_df):
-                                col_idx = column_indices["备注"]
-                                if col_idx < len(row.cells):
-                                    cell = row.cells[col_idx]
-                                    # 获取对应行的完成日期
-                                    if not pd.isna(group_df[date_col].iloc[i]):
-                                        date_value = group_df[date_col].iloc[i]
-                                        if isinstance(date_value, pd.Timestamp):
-                                            # 如果是日期类型，格式化为字符串
-                                            formatted_date = date_value.strftime("%Y年%m月%d日")
-                                        else:
-                                            # 如果不是日期类型，直接转为字符串
-                                            formatted_date = str(date_value)
-                                        
-                                        if cell.paragraphs:
-                                            cell.paragraphs[0].text = formatted_date
-                                            set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
-                                            print(f"已更新第{row_idx+1}行备注（完成日期）: {formatted_date}")
+                        # 分配数据到左右两侧
+                        data_allocation = allocate_data_to_columns(
+                            data_list,
+                            structure.max_rows_per_side,
+                            structure.max_rows_per_side
+                        )
 
-                            # 5. 填写透照参数序号（规格数量）
-                            if "透照参数序号" in column_indices:
-                                col_idx = column_indices["透照参数序号"]
-                                if col_idx < len(row.cells):
-                                    cell = row.cells[col_idx]
-                                    if cell.paragraphs:
-                                        # 获取规格去重后的数量
-                                        spec_count = len(specifications)
-                                        # 直接填写规格总数，不再根据行号判断
-                                        param_index = spec_count
-                                        cell.paragraphs[0].text = str(param_index)
-                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
-                                        print(f"已更新第{row_idx+1}行透照参数序号: {param_index}")
-            
-                    # 如果找到了规格列，在透照参数表中填写规格信息
-                    if spec_column_index >= 0 and len(specifications) > 0:
-                        # 透照参数表格一般在第10-15行，我们从第10行开始填充规格数据
-                        start_row = 10
-                        print(f"开始在透照参数表中填充去重后的{len(specifications)}种规格数据")
-                        
-                        # 清空现有规格数据
-                        for i in range(5):  # 最多清空5行
-                            if start_row + i < len(table.rows) and spec_column_index < len(table.rows[start_row + i].cells):
-                                cell = table.rows[start_row + i].cells[spec_column_index]
-                                if cell.paragraphs:
-                                    cell.paragraphs[0].text = ""
-                        
-                        # 填入去重后的规格数据
-                        for i in range(min(len(specifications), 5)):  # 最多填充5行
-                            if start_row + i < len(table.rows) and spec_column_index < len(table.rows[start_row + i].cells):
-                                cell = table.rows[start_row + i].cells[spec_column_index]
-                                if cell.paragraphs:
-                                    cell.paragraphs[0].text = str(specifications[i])
-                                    set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
-                                    print(f"已更新透照参数表第{start_row+i+1}行检件规格(mm×mm): {specifications[i]}")
-                                    
-                                    # 如果是X射线模式，则查找并填充X射线参数
-                                    if ray_type == "X射线" and xray_params_df is not None:
-                                        # 查找与规格匹配的X射线参数
-                                        xray_params = find_xray_params_by_spec(xray_params_df, specifications[i])
-                                        if xray_params:
-                                            # 填充各项X射线参数
-                                            param_columns = {
-                                                '透照方式': 10,  # 透照方式列索引
-                                                '焦距': 15,      # 焦距列索引
-                                                '管电压源能量': 28, # 管电压源能量列索引
-                                                '管电流源活度': 35, # 管电流源活度列索引
-                                                '曝光时间': 40,   # 曝光时间列索引
-                                                '有效片长': 23    # 有效片长列索引
-                                            }
-                                            
-                                            # 填入对应参数
-                                            for param_name, col_idx in param_columns.items():
-                                                if param_name in xray_params and col_idx < len(table.rows[start_row + i].cells):
-                                                    value = xray_params[param_name]
-                                                    cell = table.rows[start_row + i].cells[col_idx]
-                                                    if cell.paragraphs:
-                                                        cell.paragraphs[0].text = str(value)
-                                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
-                                                        print(f"已更新第{start_row+i+1}行{param_name}: {value}")
-                                        else:
-                                            print(f"未找到规格 {specifications[i]} 的X射线参数")
-                                    
-                                    # 如果是γ射线模式，则查找并填充γ射线参数
-                                    elif ray_type == "γ射线" and gamma_params_df is not None:
-                                        # 查找与规格匹配的γ射线参数
-                                        gamma_params = find_gamma_params_by_spec(gamma_params_df, specifications[i])
-                                        if gamma_params:
-                                            # 填充各项γ射线参数
-                                            param_columns = {
-                                                '透照方式': 10,  # 透照方式列索引
-                                                '焦距': 15,      # 焦距列索引
-                                                '管电流源活度': 35, # 管电流源活度列索引 (对应Excel中的源强)
-                                                '有效片长': 23    # 有效片长列索引 (对应Excel中的一次透照长度)
-                                            }
-                                            
-                                            # 填入对应参数
-                                            for param_name, col_idx in param_columns.items():
-                                                if param_name in gamma_params and col_idx < len(table.rows[start_row + i].cells):
-                                                    value = gamma_params[param_name]
-                                                    cell = table.rows[start_row + i].cells[col_idx]
-                                                    if cell.paragraphs:
-                                                        cell.paragraphs[0].text = str(value)
-                                                        set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
-                                                        print(f"已更新第{start_row+i+1}行{param_name}: {value}")
-                                        else:
-                                            print(f"未找到规格 {specifications[i]} 的γ射线参数")
-                    
-                    if ray_type == "X射线":
-                        print("X射线参数处理完成")
+                        # 填充双列表格
+                        success = fill_double_column_table(
+                            table, structure, data_allocation,
+                            inspection_numbers, weld_numbers, welder_numbers,
+                            date_col, group_df, specifications
+                        )
+
+                        if success:
+                            print("双列表格处理成功")
+                        else:
+                            print("双列表格处理失败，回退到单列处理")
+                            table_format = 'single_column'  # 回退到单列处理
                     else:
-                        print("γ射线参数处理完成")
+                        print("双列表格结构分析失败，回退到单列处理")
+                        table_format = 'single_column'  # 回退到单列处理
+
+                # 单列表格处理（原有逻辑）
+                if table_format == 'single_column':
+                    print("使用单列表格处理模式")
+                    column_indices = {}
+                    header_row_index = -1
+                
+                    # 查找包含"检件编号"、"焊缝编号"、"焊工号"的行
+                    for i, row in enumerate(table.rows):
+                        header_found = False
+                        for j, cell in enumerate(row.cells):
+                            cell_text = cell.text.strip()
+
+                            # 添加更详细的调试信息，输出表格单元格文本内容
+                            if "检件规格" in cell_text or "规格" in cell_text:
+                                print(f"找到可能的规格列： 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
+
+                            if "检件编号" in cell_text:
+                                column_indices["检件编号"] = j
+                                header_row_index = i
+                                header_found = True
+                                print(f"找到检件编号列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
+                            elif "焊缝编号" in cell_text or "焊口编号" in cell_text:
+                                column_indices["焊口编号"] = j
+                                header_found = True
+                                print(f"找到焊缝编号列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
+                            elif "焊工号" in cell_text:
+                                column_indices["焊工号"] = j
+                                header_found = True
+                                print(f"找到焊工号列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
+                            elif "备注" in cell_text:
+                                column_indices["备注"] = j
+                                header_found = True
+                                print(f"找到备注列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
+                            elif "检件规格" in cell_text or "规格" in cell_text or "检件规格(mm×mm)" in cell_text or "检件规格(mm*mm)" in cell_text or "检件规格(mm" in cell_text:
+                                column_indices["检件规格"] = j
+                                header_found = True
+                                print(f"找到检件规格列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
+                            elif "透照参数序号" in cell_text:
+                                column_indices["透照参数序号"] = j
+                                header_found = True
+                                print(f"找到透照参数序号列: 行 {i+1}, 列 {j+1}, 文本: '{cell_text}'")
+
+                        if header_found and header_row_index >= 0:
+                            print(f"找到表头行: 第{header_row_index+1}行")
+
+                            # 将"焊口编号"的键名更新为"焊缝编号"以保持一致性
+                            if "焊口编号" in column_indices:
+                                column_indices["焊缝编号"] = column_indices.pop("焊口编号")
+
+                            print(f"列索引: {column_indices}")
+                            break
+
+                    # 如果找到表头行，处理数据填充
+                    if header_row_index >= 0 and column_indices:
+                        # 获取可用于填充数据的行
+                        data_rows = []
+                        for i in range(header_row_index + 1, len(table.rows)):
+                            if i < len(table.rows):
+                                # 检查是否是空行或包含特殊标记的行
+                                if "以下空白" in table.rows[i].cells[0].text if len(table.rows[i].cells) > 0 else False:
+                                    print(f"找到'以下空白'行: 第{i+1}行")
+                                    break
+                                # 添加可用于填充数据的行
+                                data_rows.append(i)
+
+                        print(f"找到{len(data_rows)}行可用于填充数据")
+
+                        # 确定需要填充的数据行数
+                        data_count = len(group_df)
+                        print(f"需要填充{data_count}行数据")
+
+                        # 如果Word表格中的行数不足，需要添加新行
+                        rows_needed = data_count - len(data_rows)
+                        if rows_needed > 0:
+                            print(f"需要添加{rows_needed}行到表格中")
+                            # 找到最后一行的索引
+                            last_row_idx = data_rows[-1] if data_rows else header_row_index
+
+                            # 添加新行
+                            for _ in range(rows_needed):
+                                # 在表格末尾添加一行
+                                new_row = table.add_row()
+                                data_rows.append(len(table.rows) - 1)  # 添加新行的索引
+
+                        # 处理每一行数据
+                        for i in range(data_count):
+                            if i < len(data_rows):
+                                row_idx = data_rows[i]
+                                row = table.rows[row_idx]
+
+                                # 1. 填写检件编号
+                                if "检件编号" in column_indices and i < len(inspection_numbers):
+                                    col_idx = column_indices["检件编号"]
+                                    if col_idx < len(row.cells):
+                                        cell = row.cells[col_idx]
+                                        if cell.paragraphs:
+                                            cell.paragraphs[0].text = str(inspection_numbers[i])
+                                            set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                            print(f"已更新第{row_idx+1}行检件编号: {inspection_numbers[i]}")
+
+                                # 2. 填写焊缝编号
+                                if "焊缝编号" in column_indices and i < len(weld_numbers):
+                                    col_idx = column_indices["焊缝编号"]
+                                    if col_idx < len(row.cells):
+                                        cell = row.cells[col_idx]
+                                        if cell.paragraphs:
+                                            cell.paragraphs[0].text = str(weld_numbers[i])
+                                            set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                            print(f"已更新第{row_idx+1}行焊缝编号: {weld_numbers[i]}")
+
+                                # 3. 填写焊工号
+                                if "焊工号" in column_indices and i < len(welder_numbers):
+                                    col_idx = column_indices["焊工号"]
+                                    if col_idx < len(row.cells):
+                                        cell = row.cells[col_idx]
+                                        if cell.paragraphs:
+                                            cell.paragraphs[0].text = str(welder_numbers[i])
+                                            set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                            print(f"已更新第{row_idx+1}行焊工号: {welder_numbers[i]}")
+
+                                # 4. 填写备注（填入完成日期）
+                                if "备注" in column_indices and date_col and i < len(group_df):
+                                    col_idx = column_indices["备注"]
+                                    if col_idx < len(row.cells):
+                                        cell = row.cells[col_idx]
+                                        # 获取对应行的完成日期
+                                        if not pd.isna(group_df[date_col].iloc[i]):
+                                            date_value = group_df[date_col].iloc[i]
+                                            if isinstance(date_value, pd.Timestamp):
+                                                # 如果是日期类型，格式化为字符串
+                                                formatted_date = date_value.strftime("%Y年%m月%d日")
+                                            else:
+                                                # 如果不是日期类型，直接转为字符串
+                                                formatted_date = str(date_value)
+
+                                            if cell.paragraphs:
+                                                cell.paragraphs[0].text = formatted_date
+                                                set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                                print(f"已更新第{row_idx+1}行备注（完成日期）: {formatted_date}")
+
+                                # 5. 填写透照参数序号（规格数量）
+                                if "透照参数序号" in column_indices:
+                                    col_idx = column_indices["透照参数序号"]
+                                    if col_idx < len(row.cells):
+                                        cell = row.cells[col_idx]
+                                        if cell.paragraphs:
+                                            # 获取规格去重后的数量
+                                            spec_count = len(specifications)
+                                            # 直接填写规格总数，不再根据行号判断
+                                            param_index = spec_count
+                                            cell.paragraphs[0].text = str(param_index)
+                                            set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                            print(f"已更新第{row_idx+1}行透照参数序号: {param_index}")
+
+                # 如果找到了规格列，在透照参数表中填写规格信息
+                if spec_column_index >= 0 and len(specifications) > 0:
+                    # 透照参数表格一般在第10-15行，我们从第10行开始填充规格数据
+                    start_row = 10
+                    print(f"开始在透照参数表中填充去重后的{len(specifications)}种规格数据")
+
+                    # 清空现有规格数据
+                    for i in range(5):  # 最多清空5行
+                        if start_row + i < len(table.rows) and spec_column_index < len(table.rows[start_row + i].cells):
+                            cell = table.rows[start_row + i].cells[spec_column_index]
+                            if cell.paragraphs:
+                                cell.paragraphs[0].text = ""
+
+                    # 填入去重后的规格数据
+                    for i in range(min(len(specifications), 5)):  # 最多填充5行
+                        if start_row + i < len(table.rows) and spec_column_index < len(table.rows[start_row + i].cells):
+                            cell = table.rows[start_row + i].cells[spec_column_index]
+                            if cell.paragraphs:
+                                cell.paragraphs[0].text = str(specifications[i])
+                                set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                print(f"已更新透照参数表第{start_row+i+1}行检件规格(mm×mm): {specifications[i]}")
+
+                                # 如果是X射线模式，则查找并填充X射线参数
+                                if ray_type == "X射线" and xray_params_df is not None:
+                                    # 查找与规格匹配的X射线参数
+                                    xray_params = find_xray_params_by_spec(xray_params_df, specifications[i])
+                                    if xray_params:
+                                        # 填充各项X射线参数
+                                        param_columns = {
+                                            '透照方式': 10,  # 透照方式列索引
+                                            '焦距': 15,      # 焦距列索引
+                                            '管电压源能量': 28, # 管电压源能量列索引
+                                            '管电流源活度': 35, # 管电流源活度列索引
+                                            '曝光时间': 40,   # 曝光时间列索引
+                                            '有效片长': 23    # 有效片长列索引
+                                        }
+
+                                        # 填入对应参数
+                                        for param_name, col_idx in param_columns.items():
+                                            if param_name in xray_params and col_idx < len(table.rows[start_row + i].cells):
+                                                value = xray_params[param_name]
+                                                cell = table.rows[start_row + i].cells[col_idx]
+                                                if cell.paragraphs:
+                                                    cell.paragraphs[0].text = str(value)
+                                                    set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                                    print(f"已更新第{start_row+i+1}行{param_name}: {value}")
+                                    else:
+                                        print(f"未找到规格 {specifications[i]} 的X射线参数")
+
+                                # 如果是γ射线模式，则查找并填充γ射线参数
+                                elif ray_type == "γ射线" and gamma_params_df is not None:
+                                    # 查找与规格匹配的γ射线参数
+                                    gamma_params = find_gamma_params_by_spec(gamma_params_df, specifications[i])
+                                    if gamma_params:
+                                        # 填充各项γ射线参数
+                                        param_columns = {
+                                            '透照方式': 10,  # 透照方式列索引
+                                            '焦距': 15,      # 焦距列索引
+                                            '管电流源活度': 35, # 管电流源活度列索引 (对应Excel中的源强)
+                                            '有效片长': 23    # 有效片长列索引 (对应Excel中的一次透照长度)
+                                        }
+
+                                        # 填入对应参数
+                                        for param_name, col_idx in param_columns.items():
+                                            if param_name in gamma_params and col_idx < len(table.rows[start_row + i].cells):
+                                                value = gamma_params[param_name]
+                                                cell = table.rows[start_row + i].cells[col_idx]
+                                                if cell.paragraphs:
+                                                    cell.paragraphs[0].text = str(value)
+                                                    set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                                    print(f"已更新第{start_row+i+1}行{param_name}: {value}")
+                                    else:
+                                        print(f"未找到规格 {specifications[i]} 的γ射线参数")
+
+                if ray_type == "X射线":
+                    print("X射线参数处理完成")
+                else:
+                    print("γ射线参数处理完成")
 
             # 处理检测时机复选框匹配和标记
             checkbox_success = process_detection_timing_checkboxes(doc, inspection_time)
