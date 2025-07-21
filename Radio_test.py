@@ -173,9 +173,18 @@ def analyze_double_column_structure(table) -> Optional[TableStructure]:
 
             for j, cell in enumerate(row.cells):
                 cell_text = cell.text.strip()
+                # 调试：只打印可能包含焊缝编号的列
+                # if "焊缝" in cell_text or "焊口" in cell_text or j in [12, 13, 14, 15]:
+                #     print(f"  列{j+1}: '{cell_text}'")
 
-                # 检测关键列
-                if "序号" in cell_text:
+                # 检测关键列 - 注意顺序很重要，先检查更具体的列名
+                if "透照参数序号" in cell_text:
+                    if "透照参数序号" not in found_columns:
+                        found_columns["透照参数序号"] = [j]
+                    else:
+                        found_columns["透照参数序号"].append(j)
+                    print(f"找到透照参数序号列: 第{header_row_index+1}行第{j+1}列")
+                elif "序号" in cell_text:
                     if "序号" not in found_columns:
                         found_columns["序号"] = [j]
                     else:
@@ -187,7 +196,9 @@ def analyze_double_column_structure(table) -> Optional[TableStructure]:
                     else:
                         found_columns["检件编号"].append(j)
                     print(f"找到检件编号列: 第{header_row_index+1}行第{j+1}列")
-                elif "焊缝编号" in cell_text or "焊口编号" in cell_text:
+                elif ("焊缝编号" in cell_text or "焊口编号" in cell_text or
+                      ("焊缝" in cell_text and "编号" in cell_text) or
+                      ("焊口" in cell_text and "编号" in cell_text)):
                     key = "焊缝编号"
                     if key not in found_columns:
                         found_columns[key] = [j]
@@ -200,12 +211,6 @@ def analyze_double_column_structure(table) -> Optional[TableStructure]:
                     else:
                         found_columns["焊工号"].append(j)
                     print(f"找到焊工号列: 第{header_row_index+1}行第{j+1}列")
-                elif "透照参数序号" in cell_text:
-                    if "透照参数序号" not in found_columns:
-                        found_columns["透照参数序号"] = [j]
-                    else:
-                        found_columns["透照参数序号"].append(j)
-                    print(f"找到透照参数序号列: 第{header_row_index+1}行第{j+1}列")
                 elif "备注" in cell_text:
                     if "备注" not in found_columns:
                         found_columns["备注"] = [j]
@@ -490,16 +495,18 @@ def fill_double_column_table(table, structure: TableStructure, data_allocation: 
                             set_font_style(cell.paragraphs[0])
                             print(f"左侧第{row_idx+1}行备注: {formatted_date}")
 
-            # 填充透照参数序号
+            # 填充透照参数序号（使用透照参数表格中序号的最大值）
             if "透照参数序号" in structure.left_columns:
                 col_idx = structure.left_columns["透照参数序号"]
                 if col_idx < len(row.cells):
                     cell = row.cells[col_idx]
                     if cell.paragraphs:
-                        spec_count = len(specifications)
-                        cell.paragraphs[0].text = str(spec_count)
+                        # 透照参数序号应该是透照参数表格中序号的最大值
+                        # 即规格种类的数量
+                        max_param_seq = len(specifications)
+                        cell.paragraphs[0].text = str(max_param_seq)
                         set_font_style(cell.paragraphs[0])
-                        print(f"左侧第{row_idx+1}行透照参数序号: {spec_count}")
+                        print(f"左侧第{row_idx+1}行透照参数序号: {max_param_seq}")
 
         # 第三步：填充右侧表格的其他数据
         print("第三步：填充右侧表格数据...")
@@ -555,16 +562,18 @@ def fill_double_column_table(table, structure: TableStructure, data_allocation: 
                             set_font_style(cell.paragraphs[0])
                             print(f"右侧第{row_idx+1}行备注: {formatted_date}")
 
-            # 填充透照参数序号
+            # 填充透照参数序号（使用透照参数表格中序号的最大值）
             if "透照参数序号" in structure.right_columns:
                 col_idx = structure.right_columns["透照参数序号"]
                 if col_idx < len(row.cells):
                     cell = row.cells[col_idx]
                     if cell.paragraphs:
-                        spec_count = len(specifications)
-                        cell.paragraphs[0].text = str(spec_count)
+                        # 透照参数序号应该是透照参数表格中序号的最大值
+                        # 即规格种类的数量
+                        max_param_seq = len(specifications)
+                        cell.paragraphs[0].text = str(max_param_seq)
                         set_font_style(cell.paragraphs[0])
-                        print(f"右侧第{row_idx+1}行透照参数序号: {spec_count}")
+                        print(f"右侧第{row_idx+1}行透照参数序号: {max_param_seq}")
 
         print("双列表格填充完成")
         print(f"填充总结: 左侧{left_data_count}行，右侧{right_data_count}行，序号连续从1到{left_data_count + right_data_count}")
@@ -581,7 +590,7 @@ def find_detection_timing_options(doc):
     timing_options = []
     processed_cells = set()  # 避免重复处理同一个单元格
 
-    print("开始查找检测时机复选框选项...")
+    # print("开始查找检测时机复选框选项...")
 
     # 遍历所有表格
     for table_idx, table in enumerate(doc.tables):
@@ -646,11 +655,11 @@ def find_detection_timing_options(doc):
                                                 'position': (search_row_idx, check_cell_idx),
                                                 'table_idx': table_idx
                                             })
-                                            print(f"找到检测时机选项: '{option_text}' 在位置({search_row_idx+1}, {check_cell_idx+1})")
+                                            # print(f"找到检测时机选项: '{option_text}' 在位置({search_row_idx+1}, {check_cell_idx+1})")
 
     # 如果没有找到选项，进行全文档搜索
     if not timing_options:
-        print("\n未找到检测时机选项，进行全文档复选框搜索...")
+        # print("\n未找到检测时机选项，进行全文档复选框搜索...")
         for table_idx, table in enumerate(doc.tables):
             for row_idx, row in enumerate(table.rows):
                 for cell_idx, cell in enumerate(row.cells):
@@ -673,13 +682,13 @@ def find_detection_timing_options(doc):
                                         'position': (row_idx, cell_idx),
                                         'table_idx': table_idx
                                     })
-                                    print(f"全文档搜索找到选项: '{option_text}' 在位置({row_idx+1}, {cell_idx+1})")
+                                    # print(f"全文档搜索找到选项: '{option_text}' 在位置({row_idx+1}, {cell_idx+1})")
 
-    print(f"总共找到 {len(timing_options)} 个检测时机选项")
-    if timing_options:
-        print("所有检测时机选项:")
-        for i, option in enumerate(timing_options):
-            print(f"  {i+1}. '{option['text']}' (原文: '{option['original_line']}')")
+    # print(f"总共找到 {len(timing_options)} 个检测时机选项")
+    # if timing_options:
+    #     print("所有检测时机选项:")
+    #     for i, option in enumerate(timing_options):
+    #         print(f"  {i+1}. '{option['text']}' (原文: '{option['original_line']}')")
 
     return timing_options
 
@@ -689,7 +698,7 @@ def match_timing_option(timing_value, options):
         return None
 
     normalized_timing = normalize_text(timing_value)
-    print(f"尝试匹配检测时机值: '{timing_value}' (标准化: '{normalized_timing}')")
+    # print(f"尝试匹配检测时机值: '{timing_value}' (标准化: '{normalized_timing}')")
 
     # 定义检测时机的匹配规则
     timing_patterns = {
@@ -708,11 +717,11 @@ def match_timing_option(timing_value, options):
         option_text = option['text']
         normalized_option = normalize_text(option_text)
 
-        print(f"检查选项: '{option_text}' (标准化: '{normalized_option}')")
+        # print(f"检查选项: '{option_text}' (标准化: '{normalized_option}')")
 
         # 1. 完全匹配
         if normalized_timing == normalized_option:
-            print(f"找到完全匹配: '{option_text}'")
+            # print(f"找到完全匹配: '{option_text}'")
             return option
 
         # 2. 使用模式匹配
@@ -726,7 +735,7 @@ def match_timing_option(timing_value, options):
                         if score > best_score:
                             best_score = score
                             best_match = option
-                            print(f"找到模式匹配: '{option_text}' 匹配模式 '{pattern}' (得分: {score:.2f})")
+                            # print(f"找到模式匹配: '{option_text}' 匹配模式 '{pattern}' (得分: {score:.2f})")
 
         # 3. 包含匹配
         if normalized_timing in normalized_option or normalized_option in normalized_timing:
@@ -734,7 +743,7 @@ def match_timing_option(timing_value, options):
             if score > best_score:
                 best_score = score
                 best_match = option
-                print(f"找到包含匹配: '{option_text}' (得分: {score:.2f})")
+                # print(f"找到包含匹配: '{option_text}' (得分: {score:.2f})")
 
         # 4. 关键词匹配
         timing_keywords = ['焊', '后', '前', '打磨', '热处理', '中间', '最终']
@@ -750,13 +759,13 @@ def match_timing_option(timing_value, options):
                 if score > best_score and score > 0.3:  # 关键词匹配阈值
                     best_score = score
                     best_match = option
-                    print(f"找到关键词匹配: '{option_text}' 共同关键词: {common_keywords} (得分: {score:.2f})")
+                    # print(f"找到关键词匹配: '{option_text}' 共同关键词: {common_keywords} (得分: {score:.2f})")
 
     if best_match and best_score > 0.3:  # 降低最低匹配阈值
-        print(f"选择最佳匹配: '{best_match['text']}' (得分: {best_score:.2f})")
+        # print(f"选择最佳匹配: '{best_match['text']}' (得分: {best_score:.2f})")
         return best_match
 
-    print(f"未找到匹配的检测时机选项")
+    # print(f"未找到匹配的检测时机选项")
     return None
 
 def mark_timing_checkbox(option):
@@ -766,7 +775,7 @@ def mark_timing_checkbox(option):
         original_line = option['original_line']
         option_text = option['text']
 
-        print(f"正在标记检测时机选项: '{option_text}'")
+        # print(f"正在标记检测时机选项: '{option_text}'")
 
         # 遍历单元格中的所有段落
         for paragraph in cell.paragraphs:
@@ -792,7 +801,7 @@ def mark_timing_checkbox(option):
                         run.font.name = "宋体"
                         run.font.size = Pt(9.5)
                         run._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")
-                        print(f"已标记选项: '{marked_line}'")
+                        # print(f"已标记选项: '{marked_line}'")
                     else:
                         # 其他行保持原样
                         if line:
@@ -807,11 +816,11 @@ def mark_timing_checkbox(option):
 
                 return True
 
-        print(f"警告: 未能在单元格中找到目标选项文本进行标记")
+        # print(f"警告: 未能在单元格中找到目标选项文本进行标记")
         return False
 
     except Exception as e:
-        print(f"标记检测时机选项时出错: {e}")
+        # print(f"标记检测时机选项时出错: {e}")
         return False
 
 def find_field_options(doc, field_name, field_keywords):
@@ -819,7 +828,7 @@ def find_field_options(doc, field_name, field_keywords):
     field_options = []
     processed_cells = set()
 
-    print(f"开始查找{field_name}复选框选项...")
+    # print(f"开始查找{field_name}复选框选项...")
 
     # 遍历所有表格
     for table_idx, table in enumerate(doc.tables):
@@ -892,7 +901,7 @@ def find_field_options(doc, field_name, field_keywords):
                                                         'position': (search_row_idx, check_cell_idx),
                                                         'table_idx': table_idx
                                                     })
-                                                    print(f"找到{field_name}选项: '{option_text}' 在位置({search_row_idx+1}, {check_cell_idx+1})")
+                                                    # print(f"找到{field_name}选项: '{option_text}' 在位置({search_row_idx+1}, {check_cell_idx+1})")
                                     else:
                                         # 如果正则匹配失败，使用原来的方法
                                         option_text = line.replace('□', '').replace('☑', '').replace('✓', '').strip()
@@ -913,13 +922,13 @@ def find_field_options(doc, field_name, field_keywords):
                                                     'position': (search_row_idx, check_cell_idx),
                                                     'table_idx': table_idx
                                                 })
-                                                print(f"找到{field_name}选项: '{option_text}' 在位置({search_row_idx+1}, {check_cell_idx+1})")
+                                                # print(f"找到{field_name}选项: '{option_text}' 在位置({search_row_idx+1}, {check_cell_idx+1})")
 
-    print(f"总共找到 {len(field_options)} 个{field_name}选项")
-    if field_options:
-        print(f"所有{field_name}选项:")
-        for i, option in enumerate(field_options):
-            print(f"  {i+1}. '{option['text']}' (原文: '{option['original_line']}')")
+    # print(f"总共找到 {len(field_options)} 个{field_name}选项")
+    # if field_options:
+    #     print(f"所有{field_name}选项:")
+    #     for i, option in enumerate(field_options):
+    #         print(f"  {i+1}. '{option['text']}' (原文: '{option['original_line']}')")
 
     return field_options
 
@@ -929,7 +938,7 @@ def match_field_option(field_value, options, field_patterns):
         return None
 
     normalized_value = normalize_text(field_value)
-    print(f"尝试匹配字段值: '{field_value}' (标准化: '{normalized_value}')")
+    # print(f"尝试匹配字段值: '{field_value}' (标准化: '{normalized_value}')")
 
     best_match = None
     best_score = 0
@@ -938,11 +947,11 @@ def match_field_option(field_value, options, field_patterns):
         option_text = option['text']
         normalized_option = normalize_text(option_text)
 
-        print(f"检查选项: '{option_text}' (标准化: '{normalized_option}')")
+        # print(f"检查选项: '{option_text}' (标准化: '{normalized_option}')")
 
         # 1. 完全匹配
         if normalized_value == normalized_option:
-            print(f"找到完全匹配: '{option_text}'")
+            # print(f"找到完全匹配: '{option_text}'")
             return option
 
         # 2. 使用模式匹配
@@ -956,7 +965,7 @@ def match_field_option(field_value, options, field_patterns):
                         if score > best_score:
                             best_score = score
                             best_match = option
-                            print(f"找到模式匹配: '{option_text}' 匹配模式 '{pattern}' (得分: {score:.2f})")
+                            # print(f"找到模式匹配: '{option_text}' 匹配模式 '{pattern}' (得分: {score:.2f})")
 
         # 3. 包含匹配
         if normalized_value in normalized_option or normalized_option in normalized_value:
@@ -964,7 +973,7 @@ def match_field_option(field_value, options, field_patterns):
             if score > best_score:
                 best_score = score
                 best_match = option
-                print(f"找到包含匹配: '{option_text}' (得分: {score:.2f})")
+                # print(f"找到包含匹配: '{option_text}' (得分: {score:.2f})")
 
         # 4. 关键词匹配
         value_keywords = [kw for kw in ['gtaw', 'smaw', 'saw', '焊', '接', '方法', 'ⅰ', 'ⅱ', 'ⅲ', 'ⅳ', '级', '100%', '50%', '20%', '10%', '5%'] if kw in normalized_value]
@@ -977,13 +986,13 @@ def match_field_option(field_value, options, field_patterns):
                 if score > best_score and score > 0.3:  # 关键词匹配阈值
                     best_score = score
                     best_match = option
-                    print(f"找到关键词匹配: '{option_text}' 共同关键词: {common_keywords} (得分: {score:.2f})")
+                    # print(f"找到关键词匹配: '{option_text}' 共同关键词: {common_keywords} (得分: {score:.2f})")
 
     if best_match and best_score > 0.3:  # 降低最低匹配阈值
-        print(f"选择最佳匹配: '{best_match['text']}' (得分: {best_score:.2f})")
+        # print(f"选择最佳匹配: '{best_match['text']}' (得分: {best_score:.2f})")
         return best_match
 
-    print(f"未找到匹配的选项")
+    # print(f"未找到匹配的选项")
     return None
 
 def mark_field_checkbox(option):
@@ -993,8 +1002,8 @@ def mark_field_checkbox(option):
         option_text = option['text']
         original_line = option['original_line']
 
-        print(f"正在标记选项: '{option_text}'")
-        print(f"原始行文本: '{original_line}'")
+        # print(f"正在标记选项: '{option_text}'")
+        # print(f"原始行文本: '{original_line}'")
 
         # 遍历单元格中的所有段落
         for paragraph in cell.paragraphs:
@@ -1019,7 +1028,7 @@ def mark_field_checkbox(option):
                         if marked_line != line:
                             # 分别处理打勾符号和其他文本的字体
                             add_mixed_font_text(paragraph, marked_line)
-                            print(f"已标记选项: '{marked_line}'")
+                            # print(f"已标记选项: '{marked_line}'")
                         else:
                             # 没有变化，使用默认字体
                             run = paragraph.add_run(marked_line)
@@ -1037,11 +1046,11 @@ def mark_field_checkbox(option):
 
                 return True
 
-        print(f"警告: 未能在单元格中找到目标选项文本进行标记")
+        # print(f"警告: 未能在单元格中找到目标选项文本进行标记")
         return False
 
     except Exception as e:
-        print(f"标记选项时出错: {e}")
+        # print(f"标记选项时出错: {e}")
         return False
 
 def add_mixed_font_text(paragraph, text):
@@ -1105,7 +1114,7 @@ def mark_specific_option_in_line(line, option_text, original_line):
                 if re.search(pattern, line):
                     # 只替换匹配的部分，将□替换为☑
                     marked_line = re.sub(f'□(\\s*{escaped_option})', f'☑\\1', marked_line)
-                    print(f"使用模式 '{pattern}' 匹配并标记: '{option_text}'")
+                    # print(f"使用模式 '{pattern}' 匹配并标记: '{option_text}'")
                     break
 
             return marked_line
@@ -1113,14 +1122,14 @@ def mark_specific_option_in_line(line, option_text, original_line):
         return line
 
     except Exception as e:
-        print(f"标记特定选项时出错: {e}")
+        # print(f"标记特定选项时出错: {e}")
         return line
 
 def process_detection_timing_checkboxes(doc, timing_value):
     """处理检测时机复选框匹配和标记"""
     try:
-        print(f"\n==== 开始处理检测时机复选框匹配 ====")
-        print(f"检测时机值: '{timing_value}'")
+        # print(f"\n==== 开始处理检测时机复选框匹配 ====")
+        # print(f"检测时机值: '{timing_value}'")
 
         # 定义检测时机的匹配规则
         timing_patterns = {
@@ -1136,7 +1145,7 @@ def process_detection_timing_checkboxes(doc, timing_value):
         timing_options = find_field_options(doc, "检测时机", ["检测时机", "焊后", "焊前", "打磨", "热处理"])
 
         if not timing_options:
-            print("警告: 未找到检测时机复选框选项，跳过复选框匹配")
+            # print("警告: 未找到检测时机复选框选项，跳过复选框匹配")
             return False
 
         # 匹配检测时机值与选项
@@ -1146,26 +1155,26 @@ def process_detection_timing_checkboxes(doc, timing_value):
             # 标记匹配的选项
             success = mark_field_checkbox(matched_option)
             if success:
-                print(f"成功标记检测时机选项: '{matched_option['text']}'")
+                # print(f"成功标记检测时机选项: '{matched_option['text']}'")
                 return True
             else:
-                print(f"标记检测时机选项失败")
+                # print(f"标记检测时机选项失败")
                 return False
         else:
-            print(f"未找到匹配的检测时机选项，可用选项:")
-            for option in timing_options:
-                print(f"  - {option['text']}")
+            # print(f"未找到匹配的检测时机选项，可用选项:")
+            # for option in timing_options:
+            #     print(f"  - {option['text']}")
             return False
 
     except Exception as e:
-        print(f"处理检测时机复选框时出错: {e}")
+        # print(f"处理检测时机复选框时出错: {e}")
         return False
 
 def process_welding_method_checkboxes(doc, welding_method):
     """处理焊接方法复选框匹配和标记"""
     try:
-        print(f"\n==== 开始处理焊接方法复选框匹配 ====")
-        print(f"焊接方法值: '{welding_method}'")
+        # print(f"\n==== 开始处理焊接方法复选框匹配 ====")
+        # print(f"焊接方法值: '{welding_method}'")
 
         # 定义焊接方法的匹配规则
         welding_patterns = {
@@ -1180,7 +1189,7 @@ def process_welding_method_checkboxes(doc, welding_method):
         welding_options = find_field_options(doc, "焊接方法", ["焊接方法", "GTAW", "SMAW", "SAW"])
 
         if not welding_options:
-            print("警告: 未找到焊接方法复选框选项，跳过复选框匹配")
+            # print("警告: 未找到焊接方法复选框选项，跳过复选框匹配")
             return False
 
         # 匹配焊接方法值与选项
@@ -1190,26 +1199,26 @@ def process_welding_method_checkboxes(doc, welding_method):
             # 标记匹配的选项
             success = mark_field_checkbox(matched_option)
             if success:
-                print(f"成功标记焊接方法选项: '{matched_option['text']}'")
+                # print(f"成功标记焊接方法选项: '{matched_option['text']}'")
                 return True
             else:
-                print(f"标记焊接方法选项失败")
+                # print(f"标记焊接方法选项失败")
                 return False
         else:
-            print(f"未找到匹配的焊接方法选项，可用选项:")
-            for option in welding_options:
-                print(f"  - {option['text']}")
+            # print(f"未找到匹配的焊接方法选项，可用选项:")
+            # for option in welding_options:
+            #     print(f"  - {option['text']}")
             return False
 
     except Exception as e:
-        print(f"处理焊接方法复选框时出错: {e}")
+        # print(f"处理焊接方法复选框时出错: {e}")
         return False
 
 def process_quality_level_checkboxes(doc, quality_level):
     """处理合格级别复选框匹配和标记"""
     try:
-        print(f"\n==== 开始处理合格级别复选框匹配 ====")
-        print(f"合格级别值: '{quality_level}'")
+        # print(f"\n==== 开始处理合格级别复选框匹配 ====")
+        # print(f"合格级别值: '{quality_level}'")
 
         # 定义合格级别的匹配规则
         quality_patterns = {
@@ -1223,7 +1232,7 @@ def process_quality_level_checkboxes(doc, quality_level):
         quality_options = find_field_options(doc, "合格级别", ["合格级别", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "级别"])
 
         if not quality_options:
-            print("警告: 未找到合格级别复选框选项，跳过复选框匹配")
+            # print("警告: 未找到合格级别复选框选项，跳过复选框匹配")
             return False
 
         # 匹配合格级别值与选项
@@ -1233,26 +1242,26 @@ def process_quality_level_checkboxes(doc, quality_level):
             # 标记匹配的选项
             success = mark_field_checkbox(matched_option)
             if success:
-                print(f"成功标记合格级别选项: '{matched_option['text']}'")
+                # print(f"成功标记合格级别选项: '{matched_option['text']}'")
                 return True
             else:
-                print(f"标记合格级别选项失败")
+                # print(f"标记合格级别选项失败")
                 return False
         else:
-            print(f"未找到匹配的合格级别选项，可用选项:")
-            for option in quality_options:
-                print(f"  - {option['text']}")
+            # print(f"未找到匹配的合格级别选项，可用选项:")
+            # for option in quality_options:
+            #     print(f"  - {option['text']}")
             return False
 
     except Exception as e:
-        print(f"处理合格级别复选框时出错: {e}")
+        # print(f"处理合格级别复选框时出错: {e}")
         return False
 
 def process_detection_ratio_checkboxes(doc, detection_ratio):
     """处理检测比例复选框匹配和标记"""
     try:
-        print(f"\n==== 开始处理检测比例复选框匹配 ====")
-        print(f"检测比例值: '{detection_ratio}'")
+        # print(f"\n==== 开始处理检测比例复选框匹配 ====")
+        # print(f"检测比例值: '{detection_ratio}'")
 
         # 定义检测比例的匹配规则
         ratio_patterns = {
@@ -1268,7 +1277,7 @@ def process_detection_ratio_checkboxes(doc, detection_ratio):
         ratio_options = find_field_options(doc, "检测比例", ["检测比例", "100%", "50%", "20%", "10%", "5%", "1%", "比例"])
 
         if not ratio_options:
-            print("警告: 未找到检测比例复选框选项，跳过复选框匹配")
+            # print("警告: 未找到检测比例复选框选项，跳过复选框匹配")
             return False
 
         # 匹配检测比例值与选项
@@ -1278,26 +1287,26 @@ def process_detection_ratio_checkboxes(doc, detection_ratio):
             # 标记匹配的选项
             success = mark_field_checkbox(matched_option)
             if success:
-                print(f"成功标记检测比例选项: '{matched_option['text']}'")
+                # print(f"成功标记检测比例选项: '{matched_option['text']}'")
                 return True
             else:
-                print(f"标记检测比例选项失败")
+                # print(f"标记检测比例选项失败")
                 return False
         else:
-            print(f"未找到匹配的检测比例选项，可用选项:")
-            for option in ratio_options:
-                print(f"  - {option['text']}")
+            # print(f"未找到匹配的检测比例选项，可用选项:")
+            # for option in ratio_options:
+            #     print(f"  - {option['text']}")
             return False
 
     except Exception as e:
-        print(f"处理检测比例复选框时出错: {e}")
+        # print(f"处理检测比例复选框时出错: {e}")
         return False
 
 def process_lead_screen_checkboxes(doc, lead_screen_value):
     """处理铅增感屏复选框匹配和标记"""
     try:
-        print(f"\n==== 开始处理铅增感屏复选框匹配 ====")
-        print(f"铅增感屏值: '{lead_screen_value}'")
+        # print(f"\n==== 开始处理铅增感屏复选框匹配 ====")
+        # print(f"铅增感屏值: '{lead_screen_value}'")
 
         # 定义铅增感屏的匹配规则
         lead_screen_patterns = {
@@ -1312,7 +1321,7 @@ def process_lead_screen_checkboxes(doc, lead_screen_value):
         lead_screen_options = find_field_options(doc, "铅增感屏", ["铅增感屏", "0.03", "0.1", "×2", "*2", "增感屏"])
 
         if not lead_screen_options:
-            print("警告: 未找到铅增感屏复选框选项，跳过复选框匹配")
+            # print("警告: 未找到铅增感屏复选框选项，跳过复选框匹配")
             return False
 
         # 匹配铅增感屏值与选项
@@ -1322,19 +1331,19 @@ def process_lead_screen_checkboxes(doc, lead_screen_value):
             # 标记匹配的选项
             success = mark_field_checkbox(matched_option)
             if success:
-                print(f"成功标记铅增感屏选项: '{matched_option['text']}'")
+                # print(f"成功标记铅增感屏选项: '{matched_option['text']}'")
                 return True
             else:
-                print(f"标记铅增感屏选项失败")
+                # print(f"标记铅增感屏选项失败")
                 return False
         else:
-            print(f"未找到匹配的铅增感屏选项，可用选项:")
-            for option in lead_screen_options:
-                print(f"  - {option['text']}")
+            # print(f"未找到匹配的铅增感屏选项，可用选项:")
+            # for option in lead_screen_options:
+            #     print(f"  - {option['text']}")
             return False
 
     except Exception as e:
-        print(f"处理铅增感屏复选框时出错: {e}")
+        # print(f"处理铅增感屏复选框时出错: {e}")
         return False
 
 def get_output_filename(word_template_path, order_number, ray_type):
@@ -1859,35 +1868,59 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                     if "年" in paragraph.text and "月" in paragraph.text and "日" in paragraph.text:
                                         print(f"找到日期段落: {paragraph.text}")
 
-                                        # 清空段落内容，重新构建带格式的日期
-                                        paragraph.clear()
+                                        # 使用正则表达式精确替换日期，保留其他文本
+                                        original_text = paragraph.text
 
-                                        # 添加年份数字（楷体五号）
-                                        run_year = paragraph.add_run(str(year))
-                                        run_year.font.name = "楷体"
-                                        run_year.font.size = Pt(10.5)
-                                        run_year._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                        # 匹配各种日期格式并替换
+                                        import re
 
-                                        # 添加"年"字（保持原格式）
-                                        paragraph.add_run("年")
+                                        # 匹配格式：YYYY年MM月DD日 或 YYYY年  月  日 等
+                                        date_pattern = r'(\d{4}|\s*)年\s*(\d{1,2}|\s*)月\s*(\d{1,2}|\s*)日'
 
-                                        # 添加月份数字（楷体五号）
-                                        run_month = paragraph.add_run(str(month))
-                                        run_month.font.name = "楷体"
-                                        run_month.font.size = Pt(10.5)
-                                        run_month._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                        def replace_date(match):
+                                            return f"{year}年{month}月{day}日"
 
-                                        # 添加"月"字（保持原格式）
-                                        paragraph.add_run("月")
+                                        new_text = re.sub(date_pattern, replace_date, original_text)
 
-                                        # 添加日期数字（楷体五号）
-                                        run_day = paragraph.add_run(str(day))
-                                        run_day.font.name = "楷体"
-                                        run_day.font.size = Pt(10.5)
-                                        run_day._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                        # 如果没有匹配到完整日期格式，尝试更宽松的匹配
+                                        if new_text == original_text:
+                                            # 分别替换年、月、日的数字部分
+                                            # 替换年份：匹配年字前的数字或空格
+                                            new_text = re.sub(r'(\d{4}|\s+)年', f'{year}年', new_text)
+                                            # 替换月份：匹配月字前的数字或空格
+                                            new_text = re.sub(r'年\s*(\d{1,2}|\s+)月', f'年{month}月', new_text)
+                                            # 替换日期：匹配日字前的数字或空格
+                                            new_text = re.sub(r'月\s*(\d{1,2}|\s+)日', f'月{day}日', new_text)
 
-                                        # 添加"日"字（保持原格式）
-                                        paragraph.add_run("日")
+                                        # 重新构建段落，保持原有格式
+                                        if new_text != original_text:
+                                            # 清空段落并重新添加内容
+                                            paragraph.clear()
+
+                                            # 使用正则表达式分割文本，分别处理日期数字和其他文本
+                                            import re
+
+                                            # 分割文本：将日期数字和其他部分分开
+                                            parts = re.split(r'(\d{4}年\d{1,2}月\d{1,2}日)', new_text)
+
+                                            for part in parts:
+                                                if part:  # 跳过空字符串
+                                                    # 检查是否是日期格式
+                                                    if re.match(r'\d{4}年\d{1,2}月\d{1,2}日', part):
+                                                        # 这是日期部分，进一步分割为数字和汉字
+                                                        date_parts = re.split(r'(\d+)', part)
+                                                        for date_part in date_parts:
+                                                            if date_part:
+                                                                run = paragraph.add_run(date_part)
+                                                                if date_part.isdigit():
+                                                                    # 数字部分设置为楷体五号
+                                                                    run.font.name = "楷体"
+                                                                    run.font.size = Pt(10.5)
+                                                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "楷体")
+                                                                # 汉字部分保持默认格式
+                                                    else:
+                                                        # 非日期部分，保持原有格式
+                                                        paragraph.add_run(part)
 
                                         date_found = True
                                         print(f"已更新{pattern}日期为 {year}年{month}月{day}日")
@@ -1934,6 +1967,7 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
 
                 # 检测表格格式（单列或双列）
                 table_format = detect_table_format(table)
+                print(f"检测到的表格格式: {table_format}")
 
                 # 查找规格表头(mm×mm)位于第10行左右，检件编号等位于第18行左右
                 spec_column_index = -1
@@ -1973,6 +2007,100 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
 
                         if success:
                             print("双列表格处理成功")
+
+                            # 双列表格处理成功后，也需要处理透照参数表格
+                            print("开始处理透照参数表格...")
+
+                            # 查找透照参数表格的规格列
+                            spec_column_index = -1
+                            print("查找透照参数表格的规格列...")
+                            for j, cell in enumerate(table.rows[9].cells):  # 第10行是透照参数表格的表头
+                                cell_text = cell.text.strip()
+                                if j < 10:  # 只打印前10列的内容
+                                    print(f"  第10行列{j+1}: '{cell_text}'")
+                                if "检件规格" in cell_text and "mm" in cell_text:
+                                    spec_column_index = j
+                                    print(f"找到透照参数表格规格列：第10行，第{j+1}列")
+                                    break
+
+                            if spec_column_index == -1:
+                                print("警告：未找到透照参数表格规格列")
+
+                            # 处理透照参数表格
+                            print(f"透照参数表格处理检查: spec_column_index={spec_column_index}, specifications数量={len(specifications)}")
+                            if spec_column_index >= 0 and len(specifications) > 0:
+                                # 透照参数表格一般在第10-15行，我们从第11行开始填充规格数据
+                                start_row = 10  # 第11行（索引10）
+                                header_row = 9  # 第10行（索引9）是表头
+                                print(f"开始在透照参数表中填充去重后的{len(specifications)}种规格数据")
+                                print(f"透照参数表格处理: start_row={start_row}, header_row={header_row}")
+
+                                # 查找透照参数表格的序号列（在表头行查找）
+                                param_seq_column_index = -1
+                                print(f"查找透照参数表格序号列，表头行：{header_row+1}，数据行：{start_row+1}")
+
+                                if header_row >= 0 and header_row < len(table.rows):
+                                    print(f"在第{header_row+1}行查找序号列...")
+                                    for j, cell in enumerate(table.rows[header_row].cells):
+                                        cell_text = cell.text.strip()
+                                        if j < 5:  # 只打印前5列的内容
+                                            print(f"  列{j+1}: '{cell_text}'")
+                                        if "序号" in cell_text:
+                                            param_seq_column_index = j
+                                            print(f"找到透照参数表格序号列：第{header_row+1}行，第{j+1}列")
+                                            break
+
+                                # 如果在表头行没找到，再在数据行查找
+                                if param_seq_column_index == -1:
+                                    print(f"在第{start_row+1}行查找序号列...")
+                                    for j, cell in enumerate(table.rows[start_row].cells):
+                                        cell_text = cell.text.strip()
+                                        if j < 5:  # 只打印前5列的内容
+                                            print(f"  列{j+1}: '{cell_text}'")
+                                        if "序号" in cell_text:
+                                            param_seq_column_index = j
+                                            print(f"找到透照参数表格序号列：第{start_row+1}行，第{j+1}列")
+                                            break
+
+                                if param_seq_column_index == -1:
+                                    print("警告：未找到透照参数表格序号列")
+
+                                # 清空现有规格数据和序号
+                                for i in range(5):  # 最多清空5行
+                                    if start_row + i < len(table.rows):
+                                        # 清空规格列
+                                        if spec_column_index < len(table.rows[start_row + i].cells):
+                                            cell = table.rows[start_row + i].cells[spec_column_index]
+                                            if cell.paragraphs:
+                                                cell.paragraphs[0].text = ""
+
+                                        # 清空序号列
+                                        if param_seq_column_index >= 0 and param_seq_column_index < len(table.rows[start_row + i].cells):
+                                            cell = table.rows[start_row + i].cells[param_seq_column_index]
+                                            if cell.paragraphs:
+                                                cell.paragraphs[0].text = ""
+
+                                # 填入去重后的规格数据和对应序号
+                                for i in range(min(len(specifications), 5)):  # 最多填充5行
+                                    if start_row + i < len(table.rows):
+                                        # 填充规格数据
+                                        if spec_column_index < len(table.rows[start_row + i].cells):
+                                            cell = table.rows[start_row + i].cells[spec_column_index]
+                                            if cell.paragraphs:
+                                                cell.paragraphs[0].text = str(specifications[i])
+                                                set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                                print(f"已更新透照参数表第{start_row+i+1}行检件规格(mm×mm): {specifications[i]}")
+
+                                        # 填充序号（从1开始编号）
+                                        if param_seq_column_index >= 0 and param_seq_column_index < len(table.rows[start_row + i].cells):
+                                            cell = table.rows[start_row + i].cells[param_seq_column_index]
+                                            if cell.paragraphs:
+                                                seq_num = i + 1  # 序号从1开始
+                                                cell.paragraphs[0].text = str(seq_num)
+                                                set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                                print(f"已更新透照参数表第{start_row+i+1}行序号: {seq_num}")
+                            else:
+                                print("跳过透照参数表格处理：未找到规格列或无规格数据")
                         else:
                             print("双列表格处理失败，回退到单列处理")
                             table_format = 'single_column'  # 回退到单列处理
@@ -2120,41 +2248,92 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                                                 set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
                                                 print(f"已更新第{row_idx+1}行备注（完成日期）: {formatted_date}")
 
-                                # 5. 填写透照参数序号（规格数量）
+                                # 5. 填写透照参数序号（透照参数表格中序号的最大值）
                                 if "透照参数序号" in column_indices:
                                     col_idx = column_indices["透照参数序号"]
                                     if col_idx < len(row.cells):
                                         cell = row.cells[col_idx]
                                         if cell.paragraphs:
-                                            # 获取规格去重后的数量
-                                            spec_count = len(specifications)
-                                            # 直接填写规格总数，不再根据行号判断
-                                            param_index = spec_count
-                                            cell.paragraphs[0].text = str(param_index)
+                                            # 透照参数序号应该是透照参数表格中序号的最大值
+                                            # 即规格种类的数量
+                                            max_param_seq = len(specifications)
+                                            cell.paragraphs[0].text = str(max_param_seq)
                                             set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
-                                            print(f"已更新第{row_idx+1}行透照参数序号: {param_index}")
+                                            print(f"已更新第{row_idx+1}行透照参数序号: {max_param_seq}")
 
                 # 如果找到了规格列，在透照参数表中填写规格信息
+                print(f"透照参数表格处理检查: spec_column_index={spec_column_index}, specifications数量={len(specifications)}")
                 if spec_column_index >= 0 and len(specifications) > 0:
-                    # 透照参数表格一般在第10-15行，我们从第10行开始填充规格数据
-                    start_row = 10
+                    # 透照参数表格一般在第10-15行，我们从第11行开始填充规格数据
+                    start_row = 10  # 第11行（索引10）
+                    header_row = 9  # 第10行（索引9）是表头
                     print(f"开始在透照参数表中填充去重后的{len(specifications)}种规格数据")
+                    print(f"透照参数表格处理: start_row={start_row}, header_row={header_row}")
 
-                    # 清空现有规格数据
+                    # 查找透照参数表格的序号列（在表头行查找）
+                    param_seq_column_index = -1
+                    print(f"查找透照参数表格序号列，表头行：{header_row+1}，数据行：{start_row+1}")
+
+                    if header_row >= 0 and header_row < len(table.rows):
+                        print(f"在第{header_row+1}行查找序号列...")
+                        for j, cell in enumerate(table.rows[header_row].cells):
+                            cell_text = cell.text.strip()
+                            if j < 5:  # 只打印前5列的内容
+                                print(f"  列{j+1}: '{cell_text}'")
+                            if "序号" in cell_text:
+                                param_seq_column_index = j
+                                print(f"找到透照参数表格序号列：第{header_row+1}行，第{j+1}列")
+                                break
+
+                    # 如果在表头行没找到，再在数据行查找
+                    if param_seq_column_index == -1:
+                        print(f"在第{start_row+1}行查找序号列...")
+                        for j, cell in enumerate(table.rows[start_row].cells):
+                            cell_text = cell.text.strip()
+                            if j < 5:  # 只打印前5列的内容
+                                print(f"  列{j+1}: '{cell_text}'")
+                            if "序号" in cell_text:
+                                param_seq_column_index = j
+                                print(f"找到透照参数表格序号列：第{start_row+1}行，第{j+1}列")
+                                break
+
+                    if param_seq_column_index == -1:
+                        print("警告：未找到透照参数表格序号列")
+
+                    # 清空现有规格数据和序号
                     for i in range(5):  # 最多清空5行
-                        if start_row + i < len(table.rows) and spec_column_index < len(table.rows[start_row + i].cells):
-                            cell = table.rows[start_row + i].cells[spec_column_index]
-                            if cell.paragraphs:
-                                cell.paragraphs[0].text = ""
+                        if start_row + i < len(table.rows):
+                            # 清空规格列
+                            if spec_column_index < len(table.rows[start_row + i].cells):
+                                cell = table.rows[start_row + i].cells[spec_column_index]
+                                if cell.paragraphs:
+                                    cell.paragraphs[0].text = ""
 
-                    # 填入去重后的规格数据
+                            # 清空序号列
+                            if param_seq_column_index >= 0 and param_seq_column_index < len(table.rows[start_row + i].cells):
+                                cell = table.rows[start_row + i].cells[param_seq_column_index]
+                                if cell.paragraphs:
+                                    cell.paragraphs[0].text = ""
+
+                    # 填入去重后的规格数据和对应序号
                     for i in range(min(len(specifications), 5)):  # 最多填充5行
-                        if start_row + i < len(table.rows) and spec_column_index < len(table.rows[start_row + i].cells):
-                            cell = table.rows[start_row + i].cells[spec_column_index]
-                            if cell.paragraphs:
-                                cell.paragraphs[0].text = str(specifications[i])
-                                set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
-                                print(f"已更新透照参数表第{start_row+i+1}行检件规格(mm×mm): {specifications[i]}")
+                        if start_row + i < len(table.rows):
+                            # 填充规格数据
+                            if spec_column_index < len(table.rows[start_row + i].cells):
+                                cell = table.rows[start_row + i].cells[spec_column_index]
+                                if cell.paragraphs:
+                                    cell.paragraphs[0].text = str(specifications[i])
+                                    set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                    print(f"已更新透照参数表第{start_row+i+1}行检件规格(mm×mm): {specifications[i]}")
+
+                            # 填充序号（从1开始编号）
+                            if param_seq_column_index >= 0 and param_seq_column_index < len(table.rows[start_row + i].cells):
+                                cell = table.rows[start_row + i].cells[param_seq_column_index]
+                                if cell.paragraphs:
+                                    seq_num = i + 1  # 序号从1开始
+                                    cell.paragraphs[0].text = str(seq_num)
+                                    set_font_style(cell.paragraphs[0])  # 设置楷体五号字体
+                                    print(f"已更新透照参数表第{start_row+i+1}行序号: {seq_num}")
 
                                 # 如果是X射线模式，则查找并填充X射线参数
                                 if ray_type == "X射线" and xray_params_df is not None:
@@ -2215,38 +2394,38 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
 
             # 处理检测时机复选框匹配和标记
             checkbox_success = process_detection_timing_checkboxes(doc, inspection_time)
-            if checkbox_success:
-                print("检测时机复选框处理完成")
-            else:
-                print("检测时机复选框处理失败，已保留原有文本替换")
+            # if checkbox_success:
+            #     print("检测时机复选框处理完成")
+            # else:
+            #     print("检测时机复选框处理失败，已保留原有文本替换")
 
             # 处理焊接方法复选框匹配和标记
             welding_checkbox_success = process_welding_method_checkboxes(doc, welding_method)
-            if welding_checkbox_success:
-                print("焊接方法复选框处理完成")
-            else:
-                print("焊接方法复选框处理失败，已保留原有文本替换")
+            # if welding_checkbox_success:
+            #     print("焊接方法复选框处理完成")
+            # else:
+            #     print("焊接方法复选框处理失败，已保留原有文本替换")
 
             # 处理合格级别复选框匹配和标记
             quality_checkbox_success = process_quality_level_checkboxes(doc, grade_level)
-            if quality_checkbox_success:
-                print("合格级别复选框处理完成")
-            else:
-                print("合格级别复选框处理失败，已保留原有文本替换")
+            # if quality_checkbox_success:
+            #     print("合格级别复选框处理完成")
+            # else:
+            #     print("合格级别复选框处理失败，已保留原有文本替换")
 
             # 处理检测比例复选框匹配和标记
             ratio_checkbox_success = process_detection_ratio_checkboxes(doc, inspection_ratio)
-            if ratio_checkbox_success:
-                print("检测比例复选框处理完成")
-            else:
-                print("检测比例复选框处理失败，已保留原有文本替换")
+            # if ratio_checkbox_success:
+            #     print("检测比例复选框处理完成")
+            # else:
+            #     print("检测比例复选框处理失败，已保留原有文本替换")
 
             # 处理铅增感屏复选框匹配和标记
             lead_screen_checkbox_success = process_lead_screen_checkboxes(doc, lead_screen)
-            if lead_screen_checkbox_success:
-                print("铅增感屏复选框处理完成")
-            else:
-                print("铅增感屏复选框处理失败，已保留原有文本替换")
+            # if lead_screen_checkbox_success:
+            #     print("铅增感屏复选框处理完成")
+            # else:
+            #     print("铅增感屏复选框处理失败，已保留原有文本替换")
 
             print("==== 文档填充完成 ====\n")
             
