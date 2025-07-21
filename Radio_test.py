@@ -27,6 +27,733 @@ def set_font_style(paragraph, font_name="楷体", font_size=10.5):
         # 设置中文字体
         run._element.rPr.rFonts.set(qn('w:eastAsia'), font_name)
 
+def normalize_text(text):
+    """标准化文本以便更好的匹配"""
+    if not text:
+        return ""
+    # 移除空格、换行符等空白字符
+    normalized = re.sub(r'\s+', '', text.strip())
+    # 转换为小写
+    normalized = normalized.lower()
+    return normalized
+
+def find_detection_timing_options(doc):
+    """在Word文档中查找检测时机相关的复选框选项"""
+    timing_options = []
+    processed_cells = set()  # 避免重复处理同一个单元格
+
+    print("开始查找检测时机复选框选项...")
+
+    # 遍历所有表格
+    for table_idx, table in enumerate(doc.tables):
+        print(f"\n检查表格 {table_idx+1}...")
+
+        for row_idx, row in enumerate(table.rows):
+            # 检查每一行是否包含检测时机相关内容
+            row_text = ""
+            for cell in row.cells:
+                row_text += cell.text + " "
+
+            # 如果这一行包含检测时机相关内容，搜索整行的复选框选项
+            if "检测时机" in row_text or any(keyword in row_text for keyword in ["焊后", "焊前", "打磨", "热处理"]):
+                print(f"找到可能的检测时机行: 表格{table_idx+1}, 行{row_idx+1}")
+                print(f"行内容: '{row_text.strip()}'")
+
+                # 查找该行及相邻行中所有包含复选框的单元格
+                search_rows = [row_idx]
+                if row_idx > 0:
+                    search_rows.append(row_idx - 1)  # 上一行
+                if row_idx < len(table.rows) - 1:
+                    search_rows.append(row_idx + 1)  # 下一行
+
+                for search_row_idx in search_rows:
+                    if search_row_idx < 0 or search_row_idx >= len(table.rows):
+                        continue
+
+                    search_row = table.rows[search_row_idx]
+                    for check_cell_idx, check_cell in enumerate(search_row.cells):
+                        cell_key = (table_idx, search_row_idx, check_cell_idx)
+                        if cell_key in processed_cells:
+                            continue
+                        processed_cells.add(cell_key)
+
+                        cell_text = check_cell.text.strip()
+
+                        # 查找包含复选框的选项
+                        if '□' in cell_text or '☑' in cell_text or '✓' in cell_text:
+                            print(f"检查单元格({search_row_idx+1}, {check_cell_idx+1}): '{cell_text}'")
+
+                            # 分割多个选项（如果在同一个单元格中）
+                            lines = cell_text.split('\n')
+                            for line in lines:
+                                line = line.strip()
+                                if ('□' in line or '☑' in line or '✓' in line) and len(line) > 1:
+                                    # 提取选项文本（去除复选框符号）
+                                    option_text = line.replace('□', '').replace('☑', '').replace('✓', '').strip()
+                                    if option_text and len(option_text) > 0:
+                                        # 避免重复添加相同的选项
+                                        existing_option = None
+                                        for existing in timing_options:
+                                            if (existing['text'] == option_text and
+                                                existing['position'][0] == search_row_idx):
+                                                existing_option = existing
+                                                break
+
+                                        if not existing_option:
+                                            timing_options.append({
+                                                'text': option_text,
+                                                'original_line': line,
+                                                'cell': check_cell,
+                                                'position': (search_row_idx, check_cell_idx),
+                                                'table_idx': table_idx
+                                            })
+                                            print(f"找到检测时机选项: '{option_text}' 在位置({search_row_idx+1}, {check_cell_idx+1})")
+
+    # 如果没有找到选项，进行全文档搜索
+    if not timing_options:
+        print("\n未找到检测时机选项，进行全文档复选框搜索...")
+        for table_idx, table in enumerate(doc.tables):
+            for row_idx, row in enumerate(table.rows):
+                for cell_idx, cell in enumerate(row.cells):
+                    cell_key = (table_idx, row_idx, cell_idx)
+                    if cell_key in processed_cells:
+                        continue
+
+                    cell_text = cell.text.strip()
+                    if '□' in cell_text or '☑' in cell_text or '✓' in cell_text:
+                        lines = cell_text.split('\n')
+                        for line in lines:
+                            line = line.strip()
+                            if ('□' in line or '☑' in line or '✓' in line) and len(line) > 1:
+                                option_text = line.replace('□', '').replace('☑', '').replace('✓', '').strip()
+                                if option_text and len(option_text) > 0:
+                                    timing_options.append({
+                                        'text': option_text,
+                                        'original_line': line,
+                                        'cell': cell,
+                                        'position': (row_idx, cell_idx),
+                                        'table_idx': table_idx
+                                    })
+                                    print(f"全文档搜索找到选项: '{option_text}' 在位置({row_idx+1}, {cell_idx+1})")
+
+    print(f"总共找到 {len(timing_options)} 个检测时机选项")
+    if timing_options:
+        print("所有检测时机选项:")
+        for i, option in enumerate(timing_options):
+            print(f"  {i+1}. '{option['text']}' (原文: '{option['original_line']}')")
+
+    return timing_options
+
+def match_timing_option(timing_value, options):
+    """将检测时机值与可用选项进行匹配"""
+    if not timing_value or not options:
+        return None
+
+    normalized_timing = normalize_text(timing_value)
+    print(f"尝试匹配检测时机值: '{timing_value}' (标准化: '{normalized_timing}')")
+
+    # 定义检测时机的匹配规则
+    timing_patterns = {
+        '焊后': ['焊后', '焊接后', '焊完后', '后焊', '焊后检测'],
+        '焊前': ['焊前', '焊接前', '前焊', '焊前检测'],
+        '打磨': ['打磨', '打磨后', '打磨前'],
+        '热处理后': ['热处理后', '热处理', '热处理完成后'],
+        '中间': ['中间', '中间检测', '过程中'],
+        '最终': ['最终', '最终检测', '终检']
+    }
+
+    best_match = None
+    best_score = 0
+
+    for option in options:
+        option_text = option['text']
+        normalized_option = normalize_text(option_text)
+
+        print(f"检查选项: '{option_text}' (标准化: '{normalized_option}')")
+
+        # 1. 完全匹配
+        if normalized_timing == normalized_option:
+            print(f"找到完全匹配: '{option_text}'")
+            return option
+
+        # 2. 使用模式匹配
+        for pattern_key, pattern_list in timing_patterns.items():
+            for pattern in pattern_list:
+                normalized_pattern = normalize_text(pattern)
+                if normalized_pattern == normalized_timing:
+                    # 检查选项是否包含这个模式
+                    if normalized_pattern in normalized_option or pattern_key in normalized_option:
+                        score = 1.0  # 模式匹配给最高分
+                        if score > best_score:
+                            best_score = score
+                            best_match = option
+                            print(f"找到模式匹配: '{option_text}' 匹配模式 '{pattern}' (得分: {score:.2f})")
+
+        # 3. 包含匹配
+        if normalized_timing in normalized_option or normalized_option in normalized_timing:
+            score = min(len(normalized_timing), len(normalized_option)) / max(len(normalized_timing), len(normalized_option))
+            if score > best_score:
+                best_score = score
+                best_match = option
+                print(f"找到包含匹配: '{option_text}' (得分: {score:.2f})")
+
+        # 4. 关键词匹配
+        timing_keywords = ['焊', '后', '前', '打磨', '热处理', '中间', '最终']
+        option_keywords = ['焊', '后', '前', '打磨', '热处理', '中间', '最终']
+
+        timing_found_keywords = [kw for kw in timing_keywords if kw in normalized_timing]
+        option_found_keywords = [kw for kw in option_keywords if kw in normalized_option]
+
+        if timing_found_keywords and option_found_keywords:
+            common_keywords = set(timing_found_keywords) & set(option_found_keywords)
+            if common_keywords:
+                score = len(common_keywords) / max(len(timing_found_keywords), len(option_found_keywords))
+                if score > best_score and score > 0.3:  # 关键词匹配阈值
+                    best_score = score
+                    best_match = option
+                    print(f"找到关键词匹配: '{option_text}' 共同关键词: {common_keywords} (得分: {score:.2f})")
+
+    if best_match and best_score > 0.3:  # 降低最低匹配阈值
+        print(f"选择最佳匹配: '{best_match['text']}' (得分: {best_score:.2f})")
+        return best_match
+
+    print(f"未找到匹配的检测时机选项")
+    return None
+
+def mark_timing_checkbox(option):
+    """在匹配的选项前添加勾选标记"""
+    try:
+        cell = option['cell']
+        original_line = option['original_line']
+        option_text = option['text']
+
+        print(f"正在标记检测时机选项: '{option_text}'")
+
+        # 遍历单元格中的所有段落
+        for paragraph in cell.paragraphs:
+            paragraph_text = paragraph.text.strip()
+
+            # 如果段落包含目标选项
+            if option_text in paragraph_text and ('□' in paragraph_text or '☑' in paragraph_text or '✓' in paragraph_text):
+                # 清空段落并重新构建
+                paragraph.clear()
+
+                # 分割段落文本为多行
+                lines = paragraph_text.split('\n')
+                for i, line in enumerate(lines):
+                    line = line.strip()
+                    if option_text in line and ('□' in line or '☑' in line or '✓' in line):
+                        # 这是目标行，添加勾选标记
+                        marked_line = line.replace('□', '☑').replace('✓', '☑')
+                        if '☑' not in marked_line:
+                            # 如果没有复选框符号，在选项前添加
+                            marked_line = f'☑{line}'
+
+                        run = paragraph.add_run(marked_line)
+                        run.font.name = "宋体"
+                        run.font.size = Pt(9.5)
+                        run._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")
+                        print(f"已标记选项: '{marked_line}'")
+                    else:
+                        # 其他行保持原样
+                        if line:
+                            run = paragraph.add_run(line)
+                            run.font.name = "宋体"
+                            run.font.size = Pt(9.5)
+                            run._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")
+
+                    # 如果不是最后一行，添加换行
+                    if i < len(lines) - 1:
+                        paragraph.add_run('\n')
+
+                return True
+
+        print(f"警告: 未能在单元格中找到目标选项文本进行标记")
+        return False
+
+    except Exception as e:
+        print(f"标记检测时机选项时出错: {e}")
+        return False
+
+def find_field_options(doc, field_name, field_keywords):
+    """通用函数：在Word文档中查找指定字段的复选框选项"""
+    field_options = []
+    processed_cells = set()
+
+    print(f"开始查找{field_name}复选框选项...")
+
+    # 遍历所有表格
+    for table_idx, table in enumerate(doc.tables):
+        print(f"\n检查表格 {table_idx+1}...")
+
+        for row_idx, row in enumerate(table.rows):
+            # 检查每一行是否包含目标字段相关内容
+            row_text = ""
+            for cell in row.cells:
+                row_text += cell.text + " "
+
+            # 如果这一行包含目标字段相关内容，搜索整行的复选框选项
+            if any(keyword in row_text for keyword in field_keywords):
+                print(f"找到可能的{field_name}行: 表格{table_idx+1}, 行{row_idx+1}")
+                print(f"行内容: '{row_text.strip()}'")
+
+                # 查找该行及相邻行中所有包含复选框的单元格
+                search_rows = [row_idx]
+                if row_idx > 0:
+                    search_rows.append(row_idx - 1)  # 上一行
+                if row_idx < len(table.rows) - 1:
+                    search_rows.append(row_idx + 1)  # 下一行
+
+                for search_row_idx in search_rows:
+                    if search_row_idx < 0 or search_row_idx >= len(table.rows):
+                        continue
+
+                    search_row = table.rows[search_row_idx]
+                    for check_cell_idx, check_cell in enumerate(search_row.cells):
+                        cell_key = (table_idx, search_row_idx, check_cell_idx)
+                        if cell_key in processed_cells:
+                            continue
+                        processed_cells.add(cell_key)
+
+                        cell_text = check_cell.text.strip()
+
+                        # 查找包含复选框的选项
+                        if '□' in cell_text or '☑' in cell_text or '✓' in cell_text:
+                            print(f"检查单元格({search_row_idx+1}, {check_cell_idx+1}): '{cell_text}'")
+
+                            # 分割多个选项（如果在同一个单元格中）
+                            lines = cell_text.split('\n')
+                            for line in lines:
+                                line = line.strip()
+                                if ('□' in line or '☑' in line or '✓' in line) and len(line) > 1:
+                                    # 处理单行中的多个复选框选项（如"□GTAW □SMAW"）
+                                    checkbox_pattern = r'([□☑✓])([^□☑✓]+?)(?=[□☑✓]|$)'
+                                    matches = re.findall(checkbox_pattern, line)
+
+                                    if matches:
+                                        for checkbox, option_text in matches:
+                                            option_text = option_text.strip()
+                                            if option_text and len(option_text) > 0:
+                                                # 重构原始行文本
+                                                original_line = f"{checkbox}{option_text}"
+
+                                                # 避免重复添加相同的选项
+                                                existing_option = None
+                                                for existing in field_options:
+                                                    if (existing['text'] == option_text and
+                                                        existing['position'][0] == search_row_idx):
+                                                        existing_option = existing
+                                                        break
+
+                                                if not existing_option:
+                                                    field_options.append({
+                                                        'text': option_text,
+                                                        'original_line': original_line,
+                                                        'cell': check_cell,
+                                                        'position': (search_row_idx, check_cell_idx),
+                                                        'table_idx': table_idx
+                                                    })
+                                                    print(f"找到{field_name}选项: '{option_text}' 在位置({search_row_idx+1}, {check_cell_idx+1})")
+                                    else:
+                                        # 如果正则匹配失败，使用原来的方法
+                                        option_text = line.replace('□', '').replace('☑', '').replace('✓', '').strip()
+                                        if option_text and len(option_text) > 0:
+                                            # 避免重复添加相同的选项
+                                            existing_option = None
+                                            for existing in field_options:
+                                                if (existing['text'] == option_text and
+                                                    existing['position'][0] == search_row_idx):
+                                                    existing_option = existing
+                                                    break
+
+                                            if not existing_option:
+                                                field_options.append({
+                                                    'text': option_text,
+                                                    'original_line': line,
+                                                    'cell': check_cell,
+                                                    'position': (search_row_idx, check_cell_idx),
+                                                    'table_idx': table_idx
+                                                })
+                                                print(f"找到{field_name}选项: '{option_text}' 在位置({search_row_idx+1}, {check_cell_idx+1})")
+
+    print(f"总共找到 {len(field_options)} 个{field_name}选项")
+    if field_options:
+        print(f"所有{field_name}选项:")
+        for i, option in enumerate(field_options):
+            print(f"  {i+1}. '{option['text']}' (原文: '{option['original_line']}')")
+
+    return field_options
+
+def match_field_option(field_value, options, field_patterns):
+    """通用函数：将字段值与可用选项进行匹配"""
+    if not field_value or not options:
+        return None
+
+    normalized_value = normalize_text(field_value)
+    print(f"尝试匹配字段值: '{field_value}' (标准化: '{normalized_value}')")
+
+    best_match = None
+    best_score = 0
+
+    for option in options:
+        option_text = option['text']
+        normalized_option = normalize_text(option_text)
+
+        print(f"检查选项: '{option_text}' (标准化: '{normalized_option}')")
+
+        # 1. 完全匹配
+        if normalized_value == normalized_option:
+            print(f"找到完全匹配: '{option_text}'")
+            return option
+
+        # 2. 使用模式匹配
+        for pattern_key, pattern_list in field_patterns.items():
+            for pattern in pattern_list:
+                normalized_pattern = normalize_text(pattern)
+                if normalized_pattern == normalized_value:
+                    # 检查选项是否包含这个模式
+                    if normalized_pattern in normalized_option or pattern_key in normalized_option:
+                        score = 1.0  # 模式匹配给最高分
+                        if score > best_score:
+                            best_score = score
+                            best_match = option
+                            print(f"找到模式匹配: '{option_text}' 匹配模式 '{pattern}' (得分: {score:.2f})")
+
+        # 3. 包含匹配
+        if normalized_value in normalized_option or normalized_option in normalized_value:
+            score = min(len(normalized_value), len(normalized_option)) / max(len(normalized_value), len(normalized_option))
+            if score > best_score:
+                best_score = score
+                best_match = option
+                print(f"找到包含匹配: '{option_text}' (得分: {score:.2f})")
+
+        # 4. 关键词匹配
+        value_keywords = [kw for kw in ['gtaw', 'smaw', 'saw', '焊', '接', '方法', 'ⅰ', 'ⅱ', 'ⅲ', 'ⅳ', '级', '100%', '50%', '20%', '10%', '5%'] if kw in normalized_value]
+        option_keywords = [kw for kw in ['gtaw', 'smaw', 'saw', '焊', '接', '方法', 'ⅰ', 'ⅱ', 'ⅲ', 'ⅳ', '级', '100%', '50%', '20%', '10%', '5%'] if kw in normalized_option]
+
+        if value_keywords and option_keywords:
+            common_keywords = set(value_keywords) & set(option_keywords)
+            if common_keywords:
+                score = len(common_keywords) / max(len(value_keywords), len(option_keywords))
+                if score > best_score and score > 0.3:  # 关键词匹配阈值
+                    best_score = score
+                    best_match = option
+                    print(f"找到关键词匹配: '{option_text}' 共同关键词: {common_keywords} (得分: {score:.2f})")
+
+    if best_match and best_score > 0.3:  # 降低最低匹配阈值
+        print(f"选择最佳匹配: '{best_match['text']}' (得分: {best_score:.2f})")
+        return best_match
+
+    print(f"未找到匹配的选项")
+    return None
+
+def mark_field_checkbox(option):
+    """通用函数：在匹配的选项前添加勾选标记"""
+    try:
+        cell = option['cell']
+        option_text = option['text']
+        original_line = option['original_line']
+
+        print(f"正在标记选项: '{option_text}'")
+        print(f"原始行文本: '{original_line}'")
+
+        # 遍历单元格中的所有段落
+        for paragraph in cell.paragraphs:
+            paragraph_text = paragraph.text.strip()
+            print(f"段落文本: '{paragraph_text}'")
+
+            # 检查段落是否包含目标选项
+            if option_text in paragraph_text and ('□' in paragraph_text or '☑' in paragraph_text or '✓' in paragraph_text):
+                # 清空段落并重新构建
+                paragraph.clear()
+
+                # 分割段落文本为多行
+                lines = paragraph_text.split('\n')
+                for i, line in enumerate(lines):
+                    line = line.strip()
+
+                    if line:
+                        # 使用精确匹配和替换特定选项
+                        marked_line = mark_specific_option_in_line(line, option_text, original_line)
+
+                        # 如果行内容发生了变化（即包含打勾符号），需要分别设置字体
+                        if marked_line != line:
+                            # 分别处理打勾符号和其他文本的字体
+                            add_mixed_font_text(paragraph, marked_line)
+                            print(f"已标记选项: '{marked_line}'")
+                        else:
+                            # 没有变化，使用默认字体
+                            run = paragraph.add_run(marked_line)
+                            try:
+                                run.font.name = "宋体"
+                                run.font.size = Pt(9.5)
+                                if run._element.rPr is not None:
+                                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")
+                            except:
+                                pass  # 忽略字体设置错误
+
+                    # 如果不是最后一行，添加换行
+                    if i < len(lines) - 1:
+                        paragraph.add_run('\n')
+
+                return True
+
+        print(f"警告: 未能在单元格中找到目标选项文本进行标记")
+        return False
+
+    except Exception as e:
+        print(f"标记选项时出错: {e}")
+        return False
+
+def add_mixed_font_text(paragraph, text):
+    """添加混合字体的文本，打勾符号使用小五号字体(9磅)，其他文本使用五号字体(9.5磅)"""
+    try:
+        i = 0
+        while i < len(text):
+            char = text[i]
+
+            # 如果是打勾符号，使用小五号字体
+            if char == '☑':
+                run = paragraph.add_run(char)
+                run.font.name = "楷体"
+                run.font.size = Pt(9)  # 小五号字体
+                if run._element.rPr is not None:
+                    run._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")
+                i += 1
+            else:
+                # 收集连续的非打勾符号字符
+                normal_text = ""
+                while i < len(text) and text[i] != '☑':
+                    normal_text += text[i]
+                    i += 1
+
+                # 添加普通文本，使用五号字体
+                if normal_text:
+                    run = paragraph.add_run(normal_text)
+                    run.font.name = "宋体"
+                    run.font.size = Pt(9.5)  # 五号字体
+                    if run._element.rPr is not None:
+                        run._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")
+
+    except Exception as e:
+        print(f"设置混合字体时出错: {e}")
+        # 如果出错，回退到普通方式
+        run = paragraph.add_run(text)
+        run.font.name = "宋体"
+        run.font.size = Pt(9.5)
+        if run._element.rPr is not None:
+            run._element.rPr.rFonts.set(qn('w:eastAsia'), "宋体")
+
+def mark_specific_option_in_line(line, option_text, original_line):
+    """在一行文本中精确标记特定选项，不影响其他选项"""
+    try:
+        # 如果行中包含目标选项文本
+        if option_text in line:
+            # 构建精确匹配的正则表达式模式
+            # 匹配 "□选项文本" 或 "☑选项文本" 的模式
+            escaped_option = re.escape(option_text)
+
+            # 尝试多种匹配模式
+            patterns = [
+                f'□{escaped_option}(?=\\s|□|☑|$)',  # □选项文本（后面跟空格、其他复选框或行尾）
+                f'☑{escaped_option}(?=\\s|□|☑|$)',  # ☑选项文本（后面跟空格、其他复选框或行尾）
+                f'□\\s*{escaped_option}(?=\\s|□|☑|$)',  # □ 选项文本（中间可能有空格）
+                f'☑\\s*{escaped_option}(?=\\s|□|☑|$)'   # ☑ 选项文本（中间可能有空格）
+            ]
+
+            marked_line = line
+            for pattern in patterns:
+                if re.search(pattern, line):
+                    # 只替换匹配的部分，将□替换为☑
+                    marked_line = re.sub(f'□(\\s*{escaped_option})', f'☑\\1', marked_line)
+                    print(f"使用模式 '{pattern}' 匹配并标记: '{option_text}'")
+                    break
+
+            return marked_line
+
+        return line
+
+    except Exception as e:
+        print(f"标记特定选项时出错: {e}")
+        return line
+
+def process_detection_timing_checkboxes(doc, timing_value):
+    """处理检测时机复选框匹配和标记"""
+    try:
+        print(f"\n==== 开始处理检测时机复选框匹配 ====")
+        print(f"检测时机值: '{timing_value}'")
+
+        # 定义检测时机的匹配规则
+        timing_patterns = {
+            '焊后': ['焊后', '焊接后', '焊完后', '后焊', '焊后检测'],
+            '焊前': ['焊前', '焊接前', '前焊', '焊前检测'],
+            '打磨': ['打磨', '打磨后', '打磨前'],
+            '热处理后': ['热处理后', '热处理', '热处理完成后'],
+            '中间': ['中间', '中间检测', '过程中'],
+            '最终': ['最终', '最终检测', '终检']
+        }
+
+        # 查找所有检测时机选项
+        timing_options = find_field_options(doc, "检测时机", ["检测时机", "焊后", "焊前", "打磨", "热处理"])
+
+        if not timing_options:
+            print("警告: 未找到检测时机复选框选项，跳过复选框匹配")
+            return False
+
+        # 匹配检测时机值与选项
+        matched_option = match_field_option(timing_value, timing_options, timing_patterns)
+
+        if matched_option:
+            # 标记匹配的选项
+            success = mark_field_checkbox(matched_option)
+            if success:
+                print(f"成功标记检测时机选项: '{matched_option['text']}'")
+                return True
+            else:
+                print(f"标记检测时机选项失败")
+                return False
+        else:
+            print(f"未找到匹配的检测时机选项，可用选项:")
+            for option in timing_options:
+                print(f"  - {option['text']}")
+            return False
+
+    except Exception as e:
+        print(f"处理检测时机复选框时出错: {e}")
+        return False
+
+def process_welding_method_checkboxes(doc, welding_method):
+    """处理焊接方法复选框匹配和标记"""
+    try:
+        print(f"\n==== 开始处理焊接方法复选框匹配 ====")
+        print(f"焊接方法值: '{welding_method}'")
+
+        # 定义焊接方法的匹配规则
+        welding_patterns = {
+            'GTAW': ['GTAW', 'gtaw', 'TIG', 'tig', '氩弧焊'],
+            'SMAW': ['SMAW', 'smaw', '手工电弧焊', '手弧焊'],
+            'SAW': ['SAW', 'saw', '埋弧焊'],
+            'GTAW+SMAW': ['GTAW+SMAW', 'gtaw+smaw', 'GTAW＋SMAW', 'TIG+SMAW'],
+            'GTAW+SAW': ['GTAW+SAW', 'gtaw+saw', 'GTAW＋SAW', 'TIG+SAW']
+        }
+
+        # 查找所有焊接方法选项
+        welding_options = find_field_options(doc, "焊接方法", ["焊接方法", "GTAW", "SMAW", "SAW"])
+
+        if not welding_options:
+            print("警告: 未找到焊接方法复选框选项，跳过复选框匹配")
+            return False
+
+        # 匹配焊接方法值与选项
+        matched_option = match_field_option(welding_method, welding_options, welding_patterns)
+
+        if matched_option:
+            # 标记匹配的选项
+            success = mark_field_checkbox(matched_option)
+            if success:
+                print(f"成功标记焊接方法选项: '{matched_option['text']}'")
+                return True
+            else:
+                print(f"标记焊接方法选项失败")
+                return False
+        else:
+            print(f"未找到匹配的焊接方法选项，可用选项:")
+            for option in welding_options:
+                print(f"  - {option['text']}")
+            return False
+
+    except Exception as e:
+        print(f"处理焊接方法复选框时出错: {e}")
+        return False
+
+def process_quality_level_checkboxes(doc, quality_level):
+    """处理合格级别复选框匹配和标记"""
+    try:
+        print(f"\n==== 开始处理合格级别复选框匹配 ====")
+        print(f"合格级别值: '{quality_level}'")
+
+        # 定义合格级别的匹配规则
+        quality_patterns = {
+            'Ⅰ': ['Ⅰ', 'I', '1', '一级', '一'],
+            'Ⅱ': ['Ⅱ', 'II', '2', '二级', '二'],
+            'Ⅲ': ['Ⅲ', 'III', '3', '三级', '三'],
+            'Ⅳ': ['Ⅳ', 'IV', '4', '四级', '四']
+        }
+
+        # 查找所有合格级别选项
+        quality_options = find_field_options(doc, "合格级别", ["合格级别", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "级别"])
+
+        if not quality_options:
+            print("警告: 未找到合格级别复选框选项，跳过复选框匹配")
+            return False
+
+        # 匹配合格级别值与选项
+        matched_option = match_field_option(quality_level, quality_options, quality_patterns)
+
+        if matched_option:
+            # 标记匹配的选项
+            success = mark_field_checkbox(matched_option)
+            if success:
+                print(f"成功标记合格级别选项: '{matched_option['text']}'")
+                return True
+            else:
+                print(f"标记合格级别选项失败")
+                return False
+        else:
+            print(f"未找到匹配的合格级别选项，可用选项:")
+            for option in quality_options:
+                print(f"  - {option['text']}")
+            return False
+
+    except Exception as e:
+        print(f"处理合格级别复选框时出错: {e}")
+        return False
+
+def process_detection_ratio_checkboxes(doc, detection_ratio):
+    """处理检测比例复选框匹配和标记"""
+    try:
+        print(f"\n==== 开始处理检测比例复选框匹配 ====")
+        print(f"检测比例值: '{detection_ratio}'")
+
+        # 定义检测比例的匹配规则
+        ratio_patterns = {
+            '100%': ['100%', '100', '全部', '百分之百'],
+            '50%': ['50%', '50', '百分之五十'],
+            '20%': ['20%', '20', '百分之二十'],
+            '10%': ['10%', '10', '百分之十'],
+            '5%': ['5%', '5', '百分之五'],
+            '1%': ['1%', '1', '百分之一']
+        }
+
+        # 查找所有检测比例选项
+        ratio_options = find_field_options(doc, "检测比例", ["检测比例", "100%", "50%", "20%", "10%", "5%", "1%", "比例"])
+
+        if not ratio_options:
+            print("警告: 未找到检测比例复选框选项，跳过复选框匹配")
+            return False
+
+        # 匹配检测比例值与选项
+        matched_option = match_field_option(detection_ratio, ratio_options, ratio_patterns)
+
+        if matched_option:
+            # 标记匹配的选项
+            success = mark_field_checkbox(matched_option)
+            if success:
+                print(f"成功标记检测比例选项: '{matched_option['text']}'")
+                return True
+            else:
+                print(f"标记检测比例选项失败")
+                return False
+        else:
+            print(f"未找到匹配的检测比例选项，可用选项:")
+            for option in ratio_options:
+                print(f"  - {option['text']}")
+            return False
+
+    except Exception as e:
+        print(f"处理检测比例复选框时出错: {e}")
+        return False
+
 def get_output_filename(word_template_path, order_number, ray_type):
     """根据Word模板路径、委托单编号和射线类型生成输出文件名
     
@@ -869,7 +1596,35 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
                         print("X射线参数处理完成")
                     else:
                         print("γ射线参数处理完成")
-            
+
+            # 处理检测时机复选框匹配和标记
+            checkbox_success = process_detection_timing_checkboxes(doc, inspection_time)
+            if checkbox_success:
+                print("检测时机复选框处理完成")
+            else:
+                print("检测时机复选框处理失败，已保留原有文本替换")
+
+            # 处理焊接方法复选框匹配和标记
+            welding_checkbox_success = process_welding_method_checkboxes(doc, welding_method)
+            if welding_checkbox_success:
+                print("焊接方法复选框处理完成")
+            else:
+                print("焊接方法复选框处理失败，已保留原有文本替换")
+
+            # 处理合格级别复选框匹配和标记
+            quality_checkbox_success = process_quality_level_checkboxes(doc, grade_level)
+            if quality_checkbox_success:
+                print("合格级别复选框处理完成")
+            else:
+                print("合格级别复选框处理失败，已保留原有文本替换")
+
+            # 处理检测比例复选框匹配和标记
+            ratio_checkbox_success = process_detection_ratio_checkboxes(doc, inspection_ratio)
+            if ratio_checkbox_success:
+                print("检测比例复选框处理完成")
+            else:
+                print("检测比例复选框处理失败，已保留原有文本替换")
+
             print("==== 文档填充完成 ====\n")
             
             # 保存文档
