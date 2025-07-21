@@ -754,6 +754,50 @@ def process_detection_ratio_checkboxes(doc, detection_ratio):
         print(f"处理检测比例复选框时出错: {e}")
         return False
 
+def process_lead_screen_checkboxes(doc, lead_screen_value):
+    """处理铅增感屏复选框匹配和标记"""
+    try:
+        print(f"\n==== 开始处理铅增感屏复选框匹配 ====")
+        print(f"铅增感屏值: '{lead_screen_value}'")
+
+        # 定义铅增感屏的匹配规则
+        lead_screen_patterns = {
+            '0.03*2': ['0.03*2', '0.03×2', '0.03x2', '0.03＊2', '0.03 * 2', '0.03 × 2'],
+            '0.1*2': ['0.1*2', '0.1×2', '0.1x2', '0.1＊2', '0.1 * 2', '0.1 × 2'],
+            '柯达0.1*2': ['柯达0.1*2', '柯达0.1×2', '柯达0.1x2', '柯达0.1＊2', 'kodak0.1*2', 'kodak0.1×2'],
+            '0.03×2': ['0.03×2', '0.03*2', '0.03x2', '0.03＊2', '0.03 × 2', '0.03 * 2'],
+            '0.1×2': ['0.1×2', '0.1*2', '0.1x2', '0.1＊2', '0.1 × 2', '0.1 * 2']
+        }
+
+        # 查找所有铅增感屏选项
+        lead_screen_options = find_field_options(doc, "铅增感屏", ["铅增感屏", "0.03", "0.1", "×2", "*2", "增感屏"])
+
+        if not lead_screen_options:
+            print("警告: 未找到铅增感屏复选框选项，跳过复选框匹配")
+            return False
+
+        # 匹配铅增感屏值与选项
+        matched_option = match_field_option(lead_screen_value, lead_screen_options, lead_screen_patterns)
+
+        if matched_option:
+            # 标记匹配的选项
+            success = mark_field_checkbox(matched_option)
+            if success:
+                print(f"成功标记铅增感屏选项: '{matched_option['text']}'")
+                return True
+            else:
+                print(f"标记铅增感屏选项失败")
+                return False
+        else:
+            print(f"未找到匹配的铅增感屏选项，可用选项:")
+            for option in lead_screen_options:
+                print(f"  - {option['text']}")
+            return False
+
+    except Exception as e:
+        print(f"处理铅增感屏复选框时出错: {e}")
+        return False
+
 def get_output_filename(word_template_path, order_number, ray_type):
     """根据Word模板路径、委托单编号和射线类型生成输出文件名
     
@@ -1625,6 +1669,13 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None,
             else:
                 print("检测比例复选框处理失败，已保留原有文本替换")
 
+            # 处理铅增感屏复选框匹配和标记
+            lead_screen_checkbox_success = process_lead_screen_checkboxes(doc, lead_screen)
+            if lead_screen_checkbox_success:
+                print("铅增感屏复选框处理完成")
+            else:
+                print("铅增感屏复选框处理失败，已保留原有文本替换")
+
             print("==== 文档填充完成 ====\n")
             
             # 保存文档
@@ -1758,8 +1809,8 @@ def main():
     parser = argparse.ArgumentParser(description='将Excel数据填入Word文档')
     parser.add_argument('-e', '--excel', default="生成器/Excel/4_生成器台账-射线检测记录.xlsx", 
                         help='Excel表格路径 (默认: 生成器/Excel/4_生成器台账-射线检测记录.xlsx)')
-    parser.add_argument('-w', '--word', default="生成器/word/4_射线检测记录.docx", 
-                        help='Word模板文档路径 (默认: 生成器/word/4_射线检测记录.docx)')
+    parser.add_argument('-w', '--word', default="生成器/word/4_射线检测记录_新.docx", 
+                        help='Word模板文档路径 (默认: 生成器/word/4_射线检测记录_新.docx)')
     parser.add_argument('-o', '--output', 
                         help='输出目录 (可选，默认为"生成器/输出报告/4_射线检测记录"目录)')
     
