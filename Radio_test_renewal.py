@@ -5,8 +5,490 @@ import argparse
 from docx import Document
 from docx.shared import Pt
 from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from datetime import datetime
 import re
+import gc
+import logging
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Tuple
+
+# 动态表格扩展配置
+EXPANSION_CONFIG = {
+    'max_rows_per_batch': 50,           # 每批最大添加行数
+    'enable_cross_page': True,          # 启用跨页支持
+    'preserve_formatting': True,        # 保持格式
+    'auto_optimize_layout': True,       # 自动优化布局
+    'memory_limit_mb': 512,            # 内存限制(MB)
+}
+
+# 日志配置
+LOGGING_CONFIG = {
+    'log_expansion_details': True,      # 记录扩展详情
+    'log_performance_metrics': True,    # 记录性能指标
+    'log_format_operations': False,     # 记录格式操作
+    'log_level': 'INFO',               # 日志级别
+}
+
+@dataclass
+class TableExpansionRequirement:
+    """表格扩展需求模型"""
+    table_index: int
+    current_rows: int
+    required_rows: int
+    rows_to_add: int
+    insert_position: int
+    reference_row_index: int
+
+@dataclass
+class InspectionRowRequirement:
+    """检件行需求模型"""
+    inspection_number: str
+    sheet_count: int
+    required_rows: int
+    start_row_index: int
+    film_numbers: List[str]
+
+class DataRowCalculator:
+    """数据行计算器 - 计算检件所需的行数"""
+
+    @staticmethod
+    def calculate_rows_for_inspection(sheet_count: int) -> int:
+        """根据张数计算单个检件所需行数
+
+        Args:
+            sheet_count: 检件张数
+
+        Returns:
+            所需行数
+        """
+        if sheet_count == 2 or sheet_count == 3:
+            return sheet_count  # 2张需要2行，3张需要3行
+        elif sheet_count >= 6:
+            return sheet_count  # ≥6张时，每张一行
+        else:
+            return 1  # 其他情况默认1行
+
+    @staticmethod
+    def calculate_total_rows(inspection_numbers: List[str], sheet_counts: List[int]) -> Tuple[int, List[InspectionRowRequirement]]:
+        """计算所有检件所需的总行数
+
+        Args:
+            inspection_numbers: 检件编号列表
+            sheet_counts: 对应的张数列表
+
+        Returns:
+            (总行数, 检件行需求列表)
+        """
+        total_rows = 0
+        requirements = []
+        current_start_row = 0
+
+        for inspection_num, sheet_count in zip(inspection_numbers, sheet_counts):
+            # 确保sheet_count是整数
+            sheet_count = int(float(sheet_count)) if sheet_count is not None else 1
+            required_rows = DataRowCalculator.calculate_rows_for_inspection(sheet_count)
+
+            # 生成片号列表
+            film_numbers = []
+            if sheet_count >= 6:
+                # 为每张生成片号
+                for j in range(sheet_count):
+                    film_numbers.append(f"{inspection_num}-{j+1}")
+            else:
+                # 使用检件编号作为片号
+                film_numbers = [str(inspection_num)] * int(required_rows)
+
+            requirement = InspectionRowRequirement(
+                inspection_number=inspection_num,
+                sheet_count=sheet_count,
+                required_rows=required_rows,
+                start_row_index=current_start_row,
+                film_numbers=film_numbers
+            )
+
+            requirements.append(requirement)
+            total_rows += required_rows
+            current_start_row += required_rows
+
+            if LOGGING_CONFIG['log_expansion_details']:
+                print(f"检件 {inspection_num}: 张数={sheet_count}, 需要行数={required_rows}")
+
+        if LOGGING_CONFIG['log_expansion_details']:
+            print(f"总计需要行数: {total_rows}")
+
+        return total_rows, requirements
+
+    @staticmethod
+    def optimize_row_allocation(inspection_data: List[InspectionRowRequirement]) -> List[InspectionRowRequirement]:
+        """优化行分配策略，确保数据连续性
+
+        Args:
+            inspection_data: 检件行需求列表
+
+        Returns:
+            优化后的检件行需求列表
+        """
+        # 按检件编号排序，确保连续性
+        optimized_data = sorted(inspection_data, key=lambda x: x.inspection_number)
+
+        # 重新计算起始行索引
+        current_start_row = 0
+        for requirement in optimized_data:
+            requirement.start_row_index = current_start_row
+            current_start_row += requirement.required_rows
+
+        return optimized_data
+
+def print_template_usage_summary(template_usage_summary):
+    """输出模板使用总结"""
+    if not template_usage_summary:
+        print("\n未找到模板使用记录")
+        return
+
+    print("\n" + "="*100)
+    print("模板使用总结 - 委托单编号与Word模板对应关系")
+    print("="*100)
+
+    # 按模板类型分组统计
+    standard_template_count = 0
+    continuation_template_count = 0
+
+    # 表头
+    print(f"{'序号':<4} {'委托单编号':<25} {'射线类型':<8} {'张数总和':<8} {'数据行数':<8} {'模板类型':<10} {'使用的模板文件'}")
+    print("-"*100)
+
+    # 输出每个委托单的模板使用情况
+    for i, info in enumerate(template_usage_summary, 1):
+        order_number = info['order_number']
+        ray_type = info['ray_type']
+        total_sheets = info.get('total_sheets', 0)
+        data_rows = info.get('data_rows', 0)
+        template_type = info['template_type']
+        template_file = info['selected_template']
+
+        # 统计
+        if template_type == '标准模板':
+            standard_template_count += 1
+        else:
+            continuation_template_count += 1
+
+        # 格式化输出
+        print(f"{i:<4} {order_number:<25} {ray_type:<8} {total_sheets:<8} {data_rows:<8} {template_type:<10} {template_file}")
+
+    print("-"*100)
+
+    # 统计汇总
+    total_count = len(template_usage_summary)
+    print(f"统计汇总:")
+    print(f"  总计处理: {total_count} 个委托单编号")
+    print(f"  使用标准模板: {standard_template_count} 个 (5_射线检测记录_续_新.docx)")
+    print(f"  使用续表模板: {continuation_template_count} 个 (5_射线检测记录_续.docx)")
+
+    # 模板选择规则说明
+    print(f"\n模板选择规则:")
+    print(f"  • 张数总和 ≤ 21：使用标准模板 (5_射线检测记录_续_新.docx)")
+    print(f"  • 张数总和 > 21：使用续表模板 (5_射线检测记录_续.docx)")
+
+    # 按模板类型分组显示
+    if standard_template_count > 0:
+        print(f"\n使用标准模板的委托单编号:")
+        standard_orders = [info['order_number'] for info in template_usage_summary if info['template_type'] == '标准模板']
+        for i, order in enumerate(standard_orders, 1):
+            if i % 5 == 1:  # 每行显示5个
+                print(f"  ", end="")
+            print(f"{order:<25}", end="")
+            if i % 5 == 0 or i == len(standard_orders):
+                print()
+
+    if continuation_template_count > 0:
+        print(f"\n使用续表模板的委托单编号:")
+        continuation_orders = [info['order_number'] for info in template_usage_summary if info['template_type'] == '续表模板']
+        for i, order in enumerate(continuation_orders, 1):
+            if i % 5 == 1:  # 每行显示5个
+                print(f"  ", end="")
+            print(f"{order:<25}", end="")
+            if i % 5 == 0 or i == len(continuation_orders):
+                print()
+
+    print("="*100)
+
+class TableCapacityAnalyzer:
+    """表格容量分析器 - 分析表格容量并计算扩展需求"""
+
+    def __init__(self, doc: Document, column_indices: Dict[str, int], header_row_index: int):
+        self.doc = doc
+        self.column_indices = column_indices
+        self.header_row_index = header_row_index
+
+    def analyze_available_rows(self, table) -> Tuple[int, List[int]]:
+        """分析表格中可用于数据填充的行数
+
+        Args:
+            table: Word表格对象
+
+        Returns:
+            (可用行数, 可用行索引列表)
+        """
+        available_rows = []
+
+        # 从表头行之后开始查找可用行
+        for i in range(self.header_row_index + 1, len(table.rows)):
+            row = table.rows[i]
+
+            # 检查行是否为空或包含特殊标记
+            is_empty_or_usable = True
+            for cell in row.cells:
+                cell_text = cell.text.strip()
+                # 如果单元格包含特殊标记，则不可用
+                if cell_text and any(marker in cell_text for marker in ['以下空白', '合计', '总计', '备注']):
+                    is_empty_or_usable = False
+                    break
+
+            if is_empty_or_usable:
+                available_rows.append(i)
+
+        if LOGGING_CONFIG['log_expansion_details']:
+            print(f"表格分析: 表头行={self.header_row_index}, 可用行数={len(available_rows)}")
+            print(f"可用行索引: {available_rows}")
+
+        return len(available_rows), available_rows
+
+    def calculate_required_rows(self, inspection_data: List[str], sheet_counts: List[int]) -> Tuple[int, List[InspectionRowRequirement]]:
+        """计算填充所有数据所需的总行数
+
+        Args:
+            inspection_data: 检件编号列表
+            sheet_counts: 对应的张数列表
+
+        Returns:
+            (所需总行数, 检件行需求列表)
+        """
+        return DataRowCalculator.calculate_total_rows(inspection_data, sheet_counts)
+
+    def get_expansion_requirements(self, table, required_rows: int) -> Optional[TableExpansionRequirement]:
+        """获取表格扩展需求
+
+        Args:
+            table: Word表格对象
+            required_rows: 所需总行数
+
+        Returns:
+            表格扩展需求对象，如果不需要扩展则返回None
+        """
+        available_count, available_rows = self.analyze_available_rows(table)
+
+        if required_rows <= available_count:
+            if LOGGING_CONFIG['log_expansion_details']:
+                print(f"表格容量充足: 需要{required_rows}行, 可用{available_count}行")
+            return None
+
+        rows_to_add = required_rows - available_count
+
+        # 找到最佳插入位置（通常在最后一个可用行之后）
+        insert_position = available_rows[-1] + 1 if available_rows else self.header_row_index + 1
+        reference_row_index = available_rows[-1] if available_rows else self.header_row_index
+
+        requirement = TableExpansionRequirement(
+            table_index=0,  # 假设只有一个主表格
+            current_rows=available_count,
+            required_rows=required_rows,
+            rows_to_add=rows_to_add,
+            insert_position=insert_position,
+            reference_row_index=reference_row_index
+        )
+
+        if LOGGING_CONFIG['log_expansion_details']:
+            print(f"表格扩展需求: 当前可用{available_count}行, 需要{required_rows}行, 需添加{rows_to_add}行")
+            print(f"插入位置: {insert_position}, 参考行: {reference_row_index}")
+
+        return requirement
+
+class FormatPreserver:
+    """格式保持器 - 保持表格格式一致性"""
+
+    def __init__(self, table):
+        self.table = table
+
+    def preserve_cell_format(self, source_cell, target_cell):
+        """保持单元格格式
+
+        Args:
+            source_cell: 源单元格
+            target_cell: 目标单元格
+        """
+        try:
+            # 复制单元格属性
+            if source_cell._element.tcPr is not None:
+                target_cell._element.tcPr = source_cell._element.tcPr
+
+            # 复制段落格式
+            if len(source_cell.paragraphs) > 0 and len(target_cell.paragraphs) > 0:
+                self.copy_paragraph_format(source_cell.paragraphs[0], target_cell.paragraphs[0])
+
+        except Exception as e:
+            if LOGGING_CONFIG['log_format_operations']:
+                print(f"复制单元格格式时出错: {e}")
+
+    def preserve_row_format(self, source_row, target_row):
+        """保持行格式
+
+        Args:
+            source_row: 源行
+            target_row: 目标行
+        """
+        try:
+            # 复制行高
+            if source_row.height:
+                target_row.height = source_row.height
+
+            # 复制每个单元格的格式
+            min_cells = min(len(source_row.cells), len(target_row.cells))
+            for i in range(min_cells):
+                self.preserve_cell_format(source_row.cells[i], target_row.cells[i])
+
+        except Exception as e:
+            if LOGGING_CONFIG['log_format_operations']:
+                print(f"复制行格式时出错: {e}")
+
+    def copy_paragraph_format(self, source_para, target_para):
+        """复制段落格式
+
+        Args:
+            source_para: 源段落
+            target_para: 目标段落
+        """
+        try:
+            # 复制段落属性
+            if source_para._element.pPr is not None:
+                target_para._element.pPr = source_para._element.pPr
+
+        except Exception as e:
+            if LOGGING_CONFIG['log_format_operations']:
+                print(f"复制段落格式时出错: {e}")
+
+    def validate_format_consistency(self) -> bool:
+        """验证格式一致性
+
+        Returns:
+            格式是否一致
+        """
+        try:
+            # 简单的格式一致性检查
+            if len(self.table.rows) < 2:
+                return True
+
+            # 检查列数是否一致
+            first_row_cells = len(self.table.rows[0].cells)
+            for row in self.table.rows[1:]:
+                if len(row.cells) != first_row_cells:
+                    return False
+
+            return True
+
+        except Exception as e:
+            if LOGGING_CONFIG['log_format_operations']:
+                print(f"验证格式一致性时出错: {e}")
+            return False
+
+class DynamicRowExpander:
+    """动态行扩展器 - 执行表格行添加操作"""
+
+    def __init__(self, table, reference_row_index: int):
+        self.table = table
+        self.reference_row_index = reference_row_index
+        self.format_preserver = FormatPreserver(table)
+
+    def add_rows(self, count: int, insert_position: Optional[int] = None) -> List[int]:
+        """添加指定数量的行
+
+        Args:
+            count: 要添加的行数
+            insert_position: 插入位置，如果为None则在末尾添加
+
+        Returns:
+            新添加行的索引列表
+        """
+        if count <= 0:
+            return []
+
+        new_row_indices = []
+
+        try:
+            # 获取参考行用于格式复制
+            reference_row = self.table.rows[self.reference_row_index] if self.reference_row_index < len(self.table.rows) else None
+
+            # 批量添加行以提高性能
+            batch_size = min(count, EXPANSION_CONFIG['max_rows_per_batch'])
+
+            for batch_start in range(0, count, batch_size):
+                batch_count = min(batch_size, count - batch_start)
+
+                for i in range(batch_count):
+                    # 添加新行
+                    new_row = self.table.add_row()
+                    new_row_index = len(self.table.rows) - 1
+                    new_row_indices.append(new_row_index)
+
+                    # 复制格式
+                    if reference_row and EXPANSION_CONFIG['preserve_formatting']:
+                        self.format_preserver.preserve_row_format(reference_row, new_row)
+
+                # 内存管理
+                if EXPANSION_CONFIG['memory_limit_mb'] and batch_start % 100 == 0:
+                    gc.collect()
+
+            if LOGGING_CONFIG['log_expansion_details']:
+                print(f"成功添加 {count} 行，新行索引: {new_row_indices}")
+
+            return new_row_indices
+
+        except Exception as e:
+            print(f"添加表格行时出错: {e}")
+            return []
+
+    def copy_row_format(self, source_row, target_row):
+        """复制行格式
+
+        Args:
+            source_row: 源行
+            target_row: 目标行
+        """
+        self.format_preserver.preserve_row_format(source_row, target_row)
+
+    def ensure_cross_page_compatibility(self):
+        """确保跨页兼容性"""
+        if not EXPANSION_CONFIG['enable_cross_page']:
+            return
+
+        try:
+            # 设置表格属性以支持跨页
+            tbl = self.table._element
+            tblPr = tbl.tblPr
+
+            # 允许表格跨页
+            if tblPr.tblLayout is None:
+                tblLayout = OxmlElement('w:tblLayout')
+                tblLayout.set(qn('w:type'), 'autofit')
+                tblPr.append(tblLayout)
+
+            # 设置表头重复
+            if hasattr(self.table, 'rows') and len(self.table.rows) > 0:
+                header_row = self.table.rows[0]
+                trPr = header_row._element.trPr
+                if trPr is None:
+                    trPr = OxmlElement('w:trPr')
+                    header_row._element.insert(0, trPr)
+
+                # 添加表头重复属性
+                tblHeader = OxmlElement('w:tblHeader')
+                trPr.append(tblHeader)
+
+            if LOGGING_CONFIG['log_expansion_details']:
+                print("已设置表格跨页兼容性")
+
+        except Exception as e:
+            print(f"设置跨页兼容性时出错: {e}")
 
 def find_column_with_keyword(df, keyword):
     """查找包含指定关键字的列"""
@@ -61,9 +543,74 @@ def get_output_filename(word_template_path, order_number, ray_type):
     # 生成输出文件名
     return f"{template_name}_{order_number}_{ray_mark}_续表_生成结果.docx"
 
+# def setup_logging():
+#     """设置日志配置"""
+#     log_filename = f"radio_test_renewal_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+#     log_file = os.path.join("生成器/输出报告/log", log_filename)
+
+#     # 创建日志目录
+#     log_dir = os.path.dirname(log_file)
+#     if not os.path.exists(log_dir):
+#         os.makedirs(log_dir)
+
+#     # 配置日志
+#     logging.basicConfig(
+#         level=logging.INFO,
+#         format='%(asctime)s - %(levelname)s - %(message)s',
+#         handlers=[
+#             logging.FileHandler(log_file, encoding='utf-8'),
+#             logging.StreamHandler(sys.stdout)
+#         ]
+#     )
+
+#     logging.info(f"日志文件已创建: {log_file}")
+#     return log_file
+
+def calculate_total_inspection_count_by_order(df, column_mapping):
+    """计算每个委托单编号的检件编号总个数"""
+    # 按委托单编号分组，统计每个委托单的检件编号总个数
+    order_inspection_counts = {}
+
+    logging.info("开始计算每个委托单编号的检件编号总个数...")
+
+    for order_number in df[column_mapping['委托单编号']].unique():
+        order_df = df[df[column_mapping['委托单编号']] == order_number]
+        unique_inspections = order_df[column_mapping['检件编号']].dropna().unique()
+        inspection_count = len(unique_inspections)
+
+        order_inspection_counts[order_number] = {
+            'count': inspection_count,
+            'inspections': unique_inspections.tolist()
+        }
+
+        logging.info(f"委托单编号 {order_number}: 检件编号总个数 = {inspection_count}")
+        logging.info(f"  检件编号列表: {unique_inspections.tolist()}")
+
+    return order_inspection_counts
+
+def setup_logging(output_dir):
+    """设置日志配置"""
+    log_file = os.path.join(output_dir, f"radio_test_renewal_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+
+    # 创建日志目录
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+
+    # 配置日志
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+
+    logging.info(f"日志文件: {log_file}")
+    return log_file
+
 def process_excel_to_word(excel_path, word_template_path, output_path=None, project_name=None, client_name=None, instruction_number=None):
     """将Excel数据填入Word文档
-    
+
     Args:
         excel_path: Excel表格路径
         word_template_path: Word模板文档路径
@@ -71,25 +618,16 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
         project_name: 工程名称，用于替换Word文档中的"工程名称值"
         client_name: 委托单位，用于替换Word文档中的"委托单位值"
         instruction_number: 操作指导书编号，用于替换Word文档中的"操作指导书编号值"
-    
+
     Returns:
         bool: 处理是否成功
     """
-    # 检查文件是否存在
-    if not os.path.exists(excel_path):
-        print(f"错误: Excel文件不存在: {excel_path}")
-        return False
-        
-    if not os.path.exists(word_template_path):
-        print(f"错误: Word模板文件不存在: {word_template_path}")
-        return False
-    
     # 创建输出目录
     if output_path is None:
         output_dir = os.path.join("生成器", "输出报告", "5_射线检测记录续")
     else:
         output_dir = output_path
-        
+
     if not os.path.exists(output_dir):
         try:
             os.makedirs(output_dir)
@@ -97,18 +635,33 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
         except Exception as e:
             print(f"错误: 无法创建输出目录: {e}")
             return False
-    
-    # 读取Excel数据
-    print(f"正在读取Excel文件: {excel_path}")
-    try:
-        df = pd.read_excel(excel_path)
-        print(f"成功读取Excel文件，共有{len(df)}行数据")
-    except Exception as e:
-        print(f"错误: 无法读取Excel文件: {e}")
+
+    # # 设置日志
+    # log_file = setup_logging()
+    # logging.info("="*80)
+    # logging.info("开始处理射线检测记录续表生成")
+    # logging.info("="*80)
+
+    # 检查文件是否存在
+    if not os.path.exists(excel_path):
+        logging.error(f"Excel文件不存在: {excel_path}")
+        return False
+
+    if not os.path.exists(word_template_path):
+        logging.error(f"Word模板文件不存在: {word_template_path}")
         return False
     
+    # 读取Excel数据
+    logging.info(f"正在读取Excel文件: {excel_path}")
+    try:
+        df = pd.read_excel(excel_path)
+        logging.info(f"成功读取Excel文件，共有{len(df)}行数据")
+    except Exception as e:
+        logging.error(f"无法读取Excel文件: {e}")
+        return False
+
     # 打印所有列名，帮助调试
-    print(f"Excel表格列名: {list(df.columns)}")
+    logging.info(f"Excel表格列名: {list(df.columns)}")
     
     # 定义需要查找的列关键字
     column_keywords = {
@@ -213,11 +766,53 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                 })
                 print(f"委托单编号 {order_number} 的射线类型 X射线 有 {len(x_ray_df)} 条记录")
     
-    print(f"共有 {len(groups)} 个组合需要生成报告")
-    
+    logging.info(f"共有 {len(groups)} 个组合需要生成报告")
+
+    # 在处理之前，先统计每个分组的张数总和
+    logging.info("="*80)
+    logging.info("分组张数统计分析")
+    logging.info("="*80)
+
+    group_sheet_counts = {}
+    for group in groups:
+        order_number = group['order_number']
+        ray_type = group['ray_type']
+        group_df = group['data']
+
+        # 统计该分组中张数的总和
+        if '张数' in column_mapping and column_mapping['张数'] in group_df.columns:
+            # 将张数列转换为数值，无效值设为0
+            sheet_numbers = pd.to_numeric(group_df[column_mapping['张数']], errors='coerce').fillna(0)
+            total_sheets = int(sheet_numbers.sum())
+        else:
+            # 如果没有张数列，默认每行1张
+            total_sheets = len(group_df)
+            logging.warning(f"未找到张数列，默认每行1张，总计: {total_sheets}")
+
+        group_key = f"{order_number}_{ray_type}"
+        group_sheet_counts[group_key] = {
+            'order_number': order_number,
+            'ray_type': ray_type,
+            'total_sheets': total_sheets,
+            'data_rows': len(group_df)
+        }
+
+        logging.info(f"分组: {order_number} + {ray_type}")
+        logging.info(f"  数据行数: {len(group_df)}")
+        logging.info(f"  张数总和: {total_sheets}")
+        logging.info(f"  预期模板: {'续表模板' if total_sheets > 21 else '标准模板'}")
+        logging.info("-" * 60)
+
+    logging.info("="*80)
+    logging.info("开始处理各个分组")
+    logging.info("="*80)
+
     # 处理每个分组
     success_count = 0
     error_count = 0
+
+    # 记录每个委托单编号使用的模板信息
+    template_usage_summary = []
     
     for group in groups:
         order_number = group['order_number']
@@ -229,18 +824,59 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
         print(f"{'='*50}")
         
         try:
-            # 为该分组生成输出文件名
-            output_filename = get_output_filename(word_template_path, order_number, ray_type)
+            # 智能模板选择：使用预先统计的张数总和
+            group_key = f"{order_number}_{ray_type}"
+            group_stats = group_sheet_counts.get(group_key, {})
+
+            total_sheets = group_stats.get('total_sheets', 0)
+            data_rows = group_stats.get('data_rows', 0)
+
+            logging.info(f"处理分组: {order_number} + {ray_type}")
+            logging.info(f"张数统计: 数据行数={data_rows}, 张数总和={total_sheets}")
+
+            # 根据张数总和选择模板
+            selected_template_path = word_template_path  # 默认使用传入的模板
+
+            if total_sheets > 21:
+                # 当张数总和大于21时，使用续表模板
+                alternative_template = "生成器/word/5_射线检测记录_续.docx"
+                if os.path.exists(alternative_template):
+                    selected_template_path = alternative_template
+                    logging.info(f"✓ 张数总和({total_sheets})大于21，自动选用续表模板: {alternative_template}")
+                    print(f"✓ 张数总和({total_sheets})大于21，自动选用续表模板: {alternative_template}")
+                else:
+                    logging.warning(f"⚠ 张数总和({total_sheets})大于21，但续表模板不存在: {alternative_template}")
+                    logging.info(f"  继续使用原模板: {word_template_path}")
+                    print(f"⚠ 张数总和({total_sheets})大于21，但续表模板不存在: {alternative_template}")
+                    print(f"  继续使用原模板: {word_template_path}")
+            else:
+                logging.info(f"○ 张数总和({total_sheets})≤21，使用标准模板: {word_template_path}")
+                print(f"○ 张数总和({total_sheets})≤21，使用标准模板: {word_template_path}")
+
+            # 记录模板使用信息
+            template_info = {
+                'order_number': order_number,
+                'ray_type': ray_type,
+                'total_sheets': total_sheets,
+                'data_rows': data_rows,
+                'selected_template': os.path.basename(selected_template_path),
+                'template_path': selected_template_path,
+                'template_type': '续表模板' if total_sheets > 21 else '标准模板'
+            }
+            template_usage_summary.append(template_info)
+
+            # 为该分组生成输出文件名（使用选定的模板）
+            output_filename = get_output_filename(selected_template_path, order_number, ray_type)
             report_output_path = os.path.join(output_dir, output_filename)
             print(f"输出文件路径: {report_output_path}")
-            
+
             # 打开Word文档
-            print(f"正在处理Word文档: {word_template_path}")
-            
+            print(f"正在处理Word文档: {selected_template_path}")
+
             try:
                 # 每次处理新的组合时，重新从模板创建文档对象
                 # 这确保了每个组合都会生成一个独立的文档
-                doc = Document(word_template_path)
+                doc = Document(selected_template_path)
                 print(f"成功从模板创建新文档")
             except Exception as e:
                 print(f"无法打开Word文档: {e}")
@@ -567,41 +1203,62 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
                 
                 # 如果找到表头行，处理数据填充
                 if header_row_index >= 0 and column_indices:
-                    # 获取可用于填充数据的行
-                    data_rows = []
-                    for i in range(header_row_index + 1, len(table.rows)):
-                        if i < len(table.rows):
-                            # 检查是否是空行或包含特殊标记的行
-                            if "以下空白" in table.rows[i].cells[0].text if len(table.rows[i].cells) > 0 else False:
-                                print(f"找到'以下空白'行: 第{i+1}行")
-                                break
-                            # 添加可用于填充数据的行
-                            data_rows.append(i)
-                    
-                    print(f"找到{len(data_rows)}行可用于填充数据")
-                    
-                    # 确定需要填充的数据行数
+                    print("==== 开始动态表格扩展分析 ====")
+
+                    # 创建表格容量分析器
+                    capacity_analyzer = TableCapacityAnalyzer(doc, column_indices, header_row_index)
+
+                    # 分析当前表格容量
+                    available_count, data_rows = capacity_analyzer.analyze_available_rows(table)
+                    print(f"表格容量分析: 可用行数={available_count}, 行索引={data_rows}")
+
+                    # 计算数据行需求
+                    inspection_numbers = group_df[column_mapping['检件编号']].tolist()
+                    sheet_counts_data = group_df[column_mapping['张数']].fillna(1).tolist() if '张数' in column_mapping else [1] * len(inspection_numbers)
+
+                    # 使用数据行计算器计算总需求
+                    required_rows, inspection_requirements = capacity_analyzer.calculate_required_rows(
+                        inspection_numbers, sheet_counts_data
+                    )
+
+                    print(f"数据需求分析: 需要总行数={required_rows}")
+
+                    # 检查是否需要扩展表格
+                    expansion_requirement = capacity_analyzer.get_expansion_requirements(table, required_rows)
+
+                    if expansion_requirement:
+                        print("==== 执行动态表格扩展 ====")
+
+                        # 创建动态行扩展器
+                        row_expander = DynamicRowExpander(table, expansion_requirement.reference_row_index)
+
+                        # 添加所需的行
+                        new_row_indices = row_expander.add_rows(
+                            expansion_requirement.rows_to_add,
+                            expansion_requirement.insert_position
+                        )
+
+                        # 更新可用行列表
+                        data_rows.extend(new_row_indices)
+
+                        # 确保跨页兼容性
+                        row_expander.ensure_cross_page_compatibility()
+
+                        print(f"表格扩展完成: 添加了{len(new_row_indices)}行")
+                    else:
+                        print("表格容量充足，无需扩展")
+
+                    print("==== 动态表格扩展完成 ====\n")
+
+                    # 获取基础数据
                     data_count = len(group_df)
                     print(f"需要填充{data_count}行数据")
-                    
-                    # 如果Word表格中的行数不足，需要添加新行
-                    rows_needed = data_count - len(data_rows)
-                    if rows_needed > 0:
-                        print(f"需要添加{rows_needed}行到表格中")
-                        # 找到最后一行的索引
-                        last_row_idx = data_rows[-1] if data_rows else header_row_index
-                        
-                        # 添加新行
-                        for _ in range(rows_needed):
-                            # 在最后一行之后添加一行
-                            new_row = table.add_row()
-                            data_rows.append(len(table.rows) - 1)  # 添加新行的索引
-                    
+
                     # 对于张数≥6的情况，我们需要确保有足够的行来填写所有片号
                     # 检查是否需要添加额外的行来显示完整的片号序列
                     extra_rows_needed = 0
                     extra_rows_for_inspection = {}  # 记录每个检件编号需要的额外行数
-                    
+
                     for i in range(data_count):
                         if i < len(sheet_counts):
                             # 修改逻辑：当张数为2或3时，也需要额外行
@@ -893,7 +1550,10 @@ def process_excel_to_word(excel_path, word_template_path, output_path=None, proj
     print(f"\n处理完成: 共处理{len(groups)}个组合，成功生成{success_count}份报告，失败{error_count}份")
     if error_count > 0:
         print(f"警告: 有{error_count}个组合处理失败，请检查日志")
-    
+
+    # 输出模板使用总结
+    print_template_usage_summary(template_usage_summary)
+
     return success_count > 0
 
 # 新增函数：查找像质计灵敏度
