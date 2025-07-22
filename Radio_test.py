@@ -486,7 +486,11 @@ def fill_double_column_table(table, structure: TableStructure, data_allocation: 
                     if not pd.isna(group_df[date_col].iloc[data_idx]):
                         date_value = group_df[date_col].iloc[data_idx]
                         if isinstance(date_value, pd.Timestamp):
-                            formatted_date = date_value.strftime("%Y年%m月%d日")
+                            # 格式化为 25.7.12 格式（去除前导零）
+                            year = date_value.strftime("%y")
+                            month = str(date_value.month)
+                            day = str(date_value.day)
+                            formatted_date = f"{year}.{month}.{day}"
                         else:
                             formatted_date = str(date_value)
 
@@ -553,7 +557,11 @@ def fill_double_column_table(table, structure: TableStructure, data_allocation: 
                     if not pd.isna(group_df[date_col].iloc[data_idx]):
                         date_value = group_df[date_col].iloc[data_idx]
                         if isinstance(date_value, pd.Timestamp):
-                            formatted_date = date_value.strftime("%Y年%m月%d日")
+                            # 格式化为 25.7.12 格式（去除前导零）
+                            year = date_value.strftime("%y")
+                            month = str(date_value.month)
+                            day = str(date_value.day)
+                            formatted_date = f"{year}.{month}.{day}"
                         else:
                             formatted_date = str(date_value)
 
