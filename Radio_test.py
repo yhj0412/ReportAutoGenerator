@@ -33,8 +33,23 @@ def normalize_text(text):
     """标准化文本以便更好的匹配"""
     if not text:
         return ""
+
     # 移除空格、换行符等空白字符
     normalized = re.sub(r'\s+', '', text.strip())
+
+    # 罗马数字转换映射（将不同形式的罗马数字统一转换为阿拉伯数字）
+    roman_mapping = {
+        'I': '1', 'Ⅰ': '1',      # 拉丁字母I 和 中文罗马数字1
+        'II': '2', 'Ⅱ': '2',     # 拉丁字母II 和 中文罗马数字2
+        'III': '3', 'Ⅲ': '3',    # 拉丁字母III 和 中文罗马数字3
+        'IV': '4', 'Ⅳ': '4',     # 拉丁字母IV 和 中文罗马数字4
+        'V': '5', 'Ⅴ': '5'       # 拉丁字母V 和 中文罗马数字5
+    }
+
+    # 应用罗马数字转换（先处理长的，避免部分匹配）
+    for roman in sorted(roman_mapping.keys(), key=len, reverse=True):
+        normalized = normalized.replace(roman, roman_mapping[roman])
+
     # 转换为小写
     normalized = normalized.lower()
     return normalized
@@ -100,7 +115,7 @@ def detect_table_format(table) -> str:
                     for key_col in key_columns:
                         if key_col in cell_text:
                             column_counts[key_col] = column_counts.get(key_col, 0) + 1
-                            print(f"在第{header_row_idx+1}行第{cell_idx+1}列找到'{key_col}': {cell_text}")
+                            # print(f"在第{header_row_idx+1}行第{cell_idx+1}列找到'{key_col}': {cell_text}")
         else:
             # 如果没找到检测部位信息行，使用原来的逻辑检查前几行
             print("未找到检测部位信息行，使用通用检测逻辑")
@@ -114,7 +129,7 @@ def detect_table_format(table) -> str:
                         for key_col in key_columns:
                             if key_col in cell_text:
                                 column_counts[key_col] = column_counts.get(key_col, 0) + 1
-                                print(f"在第{row_idx+1}行第{cell_idx+1}列找到'{key_col}': {cell_text}")
+                                # print(f"在第{row_idx+1}行第{cell_idx+1}列找到'{key_col}': {cell_text}")
 
         # 如果任何关键列出现2次或以上，则认为是双列表格
         # 特别关注序号列，如果序号出现3次以上，很可能是双列
